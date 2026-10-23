@@ -1,5 +1,6 @@
 import YAML from 'yaml';
 import { slotLabel } from '../time.js';
+import { getTone } from '../image/themes.js';
 
 const MODE_TEXT = {
   promo: 'โปรโมทได้ (ใช้ราคา/ขอบเขตตามข้อมูลจริง ชวนทักมาคุยได้)',
@@ -17,7 +18,8 @@ export function systemPrompt(brand) {
 ${YAML.stringify(brand)}</brand>
 
 กติกา:
-- เขียนภาษาไทย น้ำเสียง: ${brand.voice}
+- เขียนภาษาไทย ตัวตนของแบรนด์: ${brand.voice} (น้ำเสียงของแต่ละโพสต์กำหนดแยกให้ ให้ทำตามนั้น)
+- ทุกโพสต์ต้องแตกต่างจากโพสต์ก่อนๆ อย่างชัดเจน ทั้งหัวข้อ มุมมอง วิธีเปิดเรื่อง และรูปแบบการเขียน ห้ามใช้สูตรเดิมซ้ำ
 - ราคา ขอบเขต ระยะเวลา และผลงาน ใช้ได้เฉพาะจากข้อมูลข้างบน ห้ามแต่งตัวเลข โปรโมชัน ส่วนลด หรือของแถม
 - เรียกแพ็กเกจด้วยชื่อภาษาไทยในช่อง name เท่านั้น (ห้ามใช้ id เช่น starter/backoffice/enterprise เป็นชื่อแพ็กเกจ)
 - ห้ามบอกว่า "เคยทำ/พัฒนาให้" งานที่ไม่อยู่ใน portfolio ถ้าหัวข้อเป็นระบบที่ไม่อยู่ในผลงาน ให้เขียนแบบ "รับทำ/ทำได้" แทน
@@ -30,10 +32,13 @@ ${YAML.stringify(brand)}</brand>
 - โพสต์แบบไม่ขาย (value/soft) ถ้ากลุ่มอนุญาตลายเซ็น ลงท้ายสั้นๆ ได้แค่ "— ${brand.name} dev" ห้ามใส่ลิงก์หรือชวนทัก
 - ภาพ: ข้อความในภาพสั้น อ่านจบใน 3 วินาที headline ไม่เกิน 60 ตัวอักษร bullets ไม่เกิน 4 ข้อ
 - ห้ามมีตัวอักษร emoji ในข้อมูลภาพทุกช่อง (ฟอนต์ในภาพไม่รองรับ)
-- headline ใส่ | ได้ 1 ครั้งเพื่อให้ส่วนท้ายเป็นสีเขียวเน้น เช่น "ระบบสต็อกที่|ไม่ต้องนับมือ"`;
+- headline ใส่ | ได้ 1 ครั้งเพื่อให้ส่วนท้ายเป็นสีเน้น เช่น "ระบบสต็อกที่|ไม่ต้องนับมือ"
+- ข่าว: ใช้ได้เฉพาะข่าวในรายการที่ให้ สรุปด้วยภาษาของเราเอง ห้ามคัดลอกประโยคจากข่าว ห้ามแต่งรายละเอียดที่ข่าวไม่ได้บอก
+  ต้องบอกชื่อแหล่งข่าวในแคปชัน (เช่น "ที่มา: Blognone") และใส่ลิงก์ข่าวในช่อง newsUrl ให้ตรงกับรายการทุกตัวอักษร
+- visual: คำบรรยายภาพประกอบเป็นภาษาอังกฤษ 1 ประโยค (ฉาก/วัตถุที่สื่อเนื้อหา) ห้ามมีตัวอักษรหรือโลโก้ในภาพ`;
 }
 
-export function slotPrompt({ date, slotPlan, groups, recentTopics, topicHint = "" }) {
+export function slotPrompt({ date, slotPlan, groups, recentTopics, topicHint = '', tone = '', news = [] }) {
   const p = slotPlan.pillar;
   const groupLines = slotPlan.groups.map(({ groupId, mode }) => {
     const g = groups.find((x) => x.id === groupId);
@@ -45,6 +50,19 @@ export function slotPrompt({ date, slotPlan, groups, recentTopics, topicHint = "
   ลายเซ็น: ${g.signature ? 'ได้' : 'ไม่ได้'}`;
   }).join('\n');
   const needsSoft = slotPlan.groups.some((g) => g.mode === 'soft');
+  const t = getTone(tone);
+  const mustNews = p.template === 'news';
+  const newsLines = news
+    .map((n, i) => `${i + 1}. [${n.source}] ${n.title}\n   ${n.url}${n.summary ? `\n   ${n.summary.slice(0, 140)}` : ''}`)
+    .join('\n');
+  let newsBlock = '';
+  if (news.length) {
+    newsBlock = `\nข่าวล่าสุด (${mustNews
+      ? 'เลือก 1 ข่าวที่เกี่ยวกับธุรกิจ/IT ในไทยมากที่สุด แล้วเขียนจากข่าวนั้น'
+      : 'ไม่บังคับ: ถ้ามีข่าวที่เข้ากับหัวข้อ หยิบมาเชื่อมให้ทันเหตุการณ์ได้'}):\n${newsLines}\n`;
+  } else if (mustNews) {
+    newsBlock = '\nข่าวล่าสุด: (ไม่มี) — เขียนเรื่องเทรนด์เทคโนโลยีที่มั่นใจว่าถูกต้อง และใส่ newsUrl เป็น ""\n';
+  }
 
   return `วันที่ ${date} ${slotLabel(slotPlan.slot)}
 หมวด: ${p.label} (${slotPlan.isPromo ? 'โพสต์โปรโมท' : 'โพสต์ให้ความรู้/สนุก ห้ามขาย'})
@@ -52,7 +70,8 @@ export function slotPrompt({ date, slotPlan, groups, recentTopics, topicHint = "
 หัวข้อที่เจ้าของเพจอยากให้เขียน: ${topicHint}
 (ยึดหัวข้อนี้เป็นหลัก แต่ข้อเท็จจริงทั้งหมดยังต้องมาจากข้อมูลแบรนด์เท่านั้น)` : ""}
 เทมเพลตภาพหลัก: ${p.template}
-
+น้ำเสียงของโพสต์นี้: ${t.name} — ${t.brief}
+${newsBlock}
 หัวข้อที่เคยโพสต์แล้ว (ห้ามซ้ำหรือคล้าย):
 ${recentTopics.length ? recentTopics.map((t) => `- ${t}`).join('\n') : '- (ยังไม่มี)'}
 
@@ -68,8 +87,11 @@ ${recentTopics.length ? recentTopics.map((t) => `- ${t}`).join('\n') : '- (ย�
    - options: ตัวเลือกโพล 2–4 ข้อ (เฉพาะ question) ไม่มีให้ใส่ []
    - cta: ข้อความท้ายภาพสั้นๆ
    - packageId: แพ็กเกจที่พูดถึง (starter/backoffice/enterprise) หรือ all; ถ้าไม่ใช่เทมเพลต package ใส่ all
+   - source: ชื่อแหล่งข่าว (เฉพาะเมื่อใช้ข่าว) ไม่มีใส่ ""
+   - visual: คำบรรยายภาพประกอบภาษาอังกฤษ 1 ประโยค เข้ากับเนื้อหาโพสต์นี้
 5. softImage: ${needsSoft ? 'ภาพเทมเพลต tip แบบไม่ขาย (ไม่มีราคา/คำชวนจ้าง) สำหรับกลุ่มโหมด soft' : 'ไม่ใช้ ให้ใส่ค่าเหมือน image'}
 6. variants: ข้อความ 150–1000 ตัวอักษรสำหรับทุกกลุ่มด้านล่าง กลุ่มละ 1 รายการ (groupId ต้องตรง)
+7. newsUrl: ลิงก์ข่าวที่ใช้ (ต้องตรงกับรายการ) ถ้าไม่ได้ใช้ข่าวใส่ ""
 
 กลุ่ม:
 ${groupLines || '- (ไม่มีกลุ่ม ให้ส่ง variants เป็น [])'}`;

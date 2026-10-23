@@ -11,6 +11,8 @@ const NAV = [
   ['/groups', 'groups', 'กลุ่ม'],
   ['/brand', 'brand', 'แบรนด์'],
   ['/pillars', 'pillars', 'หมวดเนื้อหา'],
+  ['/themes', 'themes', 'ธีม'],
+  ['/news', 'news', 'ข่าว/เทรนด์'],
   ['/settings', 'settings', 'ตั้งค่า'],
   ['/logs', 'logs', 'Log'],
 ];

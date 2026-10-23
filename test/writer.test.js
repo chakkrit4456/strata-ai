@@ -99,3 +99,11 @@ test('tryModels ลองโมเดลถัดไปเมื่อตัว�
   assert.deepEqual(seen, ['a']);
   assert.ok(new ProviderError('x', 'y', { status: 429 }).rateLimited);
 });
+
+test('ทุกเจ้าติดโควตาชั่วคราว → รอแล้ววนลองใหม่อีกรอบ', async () => {
+  const a = fake('gemini', [new ProviderError('gemini', '503', { status: 503 }), good]);
+  const b = fake('groq', [new ProviderError('groq', '429', { status: 429 })]);
+  const r = await writeSlot({ date: '2026-10-24', slotPlan, groups, brand, history, providers: [a, b], rateLimitWaitMs: 5 });
+  assert.equal(r.provider, 'gemini');
+  assert.equal(a.calls.length, 2);
+});

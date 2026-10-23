@@ -217,3 +217,17 @@ test('bookmarklet เป็น JavaScript ที่ถูกต้อง', async
   assert.ok(BOOKMARKLET.startsWith('javascript:'));
   assert.doesNotThrow(() => new Function(decodeURIComponent(BOOKMARKLET.slice('javascript:'.length))));
 });
+
+test('หน้าธีม หน้าข่าว และตัวเลือกธีม (ธีมเพจ/สุ่มธีม) เปิดได้', async () => {
+  const themes = await req('/themes');
+  assert.equal(themes.status, 200);
+  assert.match(themes.text, /Strata \(ธีมเพจ\)/);
+  assert.equal((await req('/news')).status, 200);
+  const now = await req('/now');
+  assert.match(now.text, /🏠 ธีมเพจ/);
+  assert.match(now.text, /🎲 สุ่มธีม/);
+  const r = await req('/themes/save', { method: 'POST', form: { _csrf: csrfOf(themes.text), THEME_MODE: 'random', THEME_BRAND_EVERY: '4', USE_NEWS: '1' } });
+  assert.equal(r.status, 303);
+  assert.equal(env.themeMode, 'random');
+  assert.deepEqual(env.aiImageProviders, []);
+});

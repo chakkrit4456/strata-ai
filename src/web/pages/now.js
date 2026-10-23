@@ -4,6 +4,22 @@ import { startCreateNow, jobState } from '../../jobs.js';
 import { esc, badge, layout, field, select, csrfInput } from '../ui.js';
 import { PROMO, DAY_LABEL, redirect } from './shared.js';
 import { jobBanner } from './queue.js';
+import { env } from '../../env.js';
+import * as db from '../../db.js';
+import { themePicker, toneOptions, PICKER_CSS } from '../picker.js';
+
+function styleSection(values) {
+  const news = env.useNews ? db.freshNews({ days: 3, limit: 40 }) : [];
+  const picked = values.news ?? '';
+  const newsOpts = [['', news.length ? 'ให้ AI เลือกข่าวที่เข้ากับหัวข้อเอง (ถ้ามี)' : 'ยังไม่มีข่าว — ดึงข่าวได้ที่หน้า "ข่าว/เทรนด์"'], ['none', 'ไม่ใช้ข่าว'],
+    ...news.map((n) => [n.url, `[${n.source}] ${n.title.slice(0, 90)}`])];
+  return `${PICKER_CSS}<section class="card"><h2 style="margin-top:0">หน้าตาและสไตล์</h2>
+    <div class="field"><span>ธีมภาพ (ชุดสี ฟอนต์ ลวดลาย)</span>${themePicker('theme', values.theme ?? '')}</div>
+    ${select('สไตล์คำบรรยาย', 'tone', values.tone ?? '', toneOptions())}
+    ${select('ข่าว/เทรนด์ที่จะใช้', 'news', picked, newsOpts, { hint: 'เลือกหมวด "ข่าว/เทรนด์ล่าสุด" ถ้าอยากให้ทั้งโพสต์เล่าเรื่องข่าว' })}
+    <label class="check"><input type="checkbox" name="aiImage" value="1"${values.aiImage === false ? '' : ' checked'}> สร้างภาพประกอบด้วย AI (ฟรี ใช้เวลาเพิ่ม ~10–30 วินาที)</label>
+  </section>`;
+}
 
 function page(ctx, { error, values = {} } = {}) {
   const j = jobState();
@@ -33,6 +49,7 @@ function page(ctx, { error, values = {} } = {}) {
           ${select('หมวด', 'pillar', values.pillar ?? '', [['', 'ให้ระบบเลือกให้'], ...pillars.map((p) => [p.id, `${p.label}${p.kind === 'promo' ? ' (โปรโมท)' : ''}`])])}
           ${field('หัวข้อที่อยากให้เขียน (ไม่บังคับ)', 'topic', values.topic ?? '', { hint: 'เช่น "ระบบจองห้องพักสำหรับรีสอร์ตเล็ก" — เว้นว่างให้ AI คิดเอง', attrs: 'maxlength="300"' })}
         </section>
+        ${styleSection(values)}
         <section class="card"><div class="head"><h2 style="margin:0 auto 0 0">ส่งไปกลุ่มไหนบ้าง</h2>
           ${realCount ? `<label class="check"><input type="checkbox" id="all" onchange="document.querySelectorAll('.grp:not(:disabled)').forEach(c=>c.checked=this.checked)"> เลือกทั้งหมด (${realCount})</label>` : ''}</div>
           ${realCount ? '' : '<div class="flash warn">ยังไม่มีกลุ่ม Facebook จริงที่ใช้ได้ — เพิ่มลิงก์กลุ่มจริงที่หน้า <a href="/groups">กลุ่ม</a> ก่อน (โพสต์เพจอย่างเดียวได้)</div>'}
@@ -48,12 +65,19 @@ function page(ctx, { error, values = {} } = {}) {
 }
 
 export const routes = [
-  ['GET', /^\/now$/, (ctx) => page(ctx)],
+  // /now?news=<url> มาจากปุ่ม "สร้างโพสต์จากข่าวนี้" ในหน้าข่าว
+  ['GET', /^\/now$/, (ctx) => page(ctx, { values: ctx.query.get('news') ? { news: ctx.query.get('news'), pillar: 'trend' } : {} })],
   ['POST', /^\/now$/, (ctx) => {
     const f = ctx.form;
-    const values = { pillar: f.pillar ?? '', topic: f.topic ?? '', groups: [].concat(f.groups ?? []), preview: f.preview === '1' };
+    const values = {
+      pillar: f.pillar ?? '', topic: f.topic ?? '', groups: [].concat(f.groups ?? []), preview: f.preview === '1',
+      theme: f.theme ?? '', tone: f.tone ?? '', news: f.news ?? '', aiImage: f.aiImage === '1',
+    };
     try {
-      startCreateNow({ pillarId: values.pillar, topicHint: values.topic, groupIds: values.groups, preview: values.preview });
+      startCreateNow({
+        pillarId: values.pillar, topicHint: values.topic, groupIds: values.groups, preview: values.preview,
+        theme: values.theme, tone: values.tone, newsUrl: values.news, aiImage: values.aiImage,
+      });
     } catch (e) {
       return page(ctx, { error: e.message, values });
     }

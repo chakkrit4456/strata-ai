@@ -6,6 +6,9 @@ import { planDay, planNow } from './content/planner.js';
 import { checkSlot } from './content/guard.js';
 import { writeSlot } from './content/writer.js';
 import { renderImage, closeRenderer } from './image/render.js';
+import { generateAiImage } from './image/aiImage.js';
+import { getTheme, getTone, isTheme, isTone, pickStyle } from './image/themes.js';
+import { fetchAllNews } from './news/fetch.js';
 import { publishPhoto } from './publish/facebookPage.js';
 import { notify } from './notify/telegram.js';
 import { slotLabel, today, clockId } from './time.js';
@@ -13,29 +16,83 @@ import * as db from './db.js';
 
 const SOFT_LAYOUT = 'tip';
 
+/** ข่าวที่ส่งให้ AI เลือก: ล่าสุดที่ยังไม่เคยใช้ (ถ้าเลือกข่าวเฉพาะมา จะส่งแค่ข่าวนั้น) */
+function newsFor({ newsUrl = '' } = {}) {
+  if (newsUrl === 'none' || !env.useNews) return [];
+  if (newsUrl) {
+    const n = db.getNewsByUrl(newsUrl);
+    if (!n) throw new Error('ไม่พบข่าวที่เลือก (อาจถูกลบไปแล้ว ลองดึงข่าวใหม่)');
+    return [n];
+  }
+  // ข่าวน้อยลง = prompt สั้นลง ไม่ชนโควตา token ต่อนาทีของ AI ฟรี
+  return db.freshNews({ days: 3, limit: 8 });
+}
+
 /**
- * AI เขียน → ทำภาพ (และภาพแบบไม่ขายถ้ามีกลุ่มที่ห้ามขาย) → ได้ข้อมูลพร้อมบันทึก
+ * แปลงตัวเลือกธีมจากหน้าเว็บ: '' = ตามโหมดอัตโนมัติ, 'brand' = ธีมเพจ, 'random' = สุ่ม, หรือ id ของธีม
+ * @returns {{ theme: string, tone: string }}
+ */
+export function resolveStyle({ theme = '', tone = '' } = {}, recent = db.recentPosts(6)) {
+  const auto = pickStyle({ mode: theme === 'random' ? 'random' : theme === 'brand' ? 'brand' : env.themeMode, every: env.themeBrandEvery, recent });
+  return {
+    theme: isTheme(theme) ? theme : auto.theme,
+    tone: isTone(tone) ? tone : auto.tone,
+  };
+}
+
+/**
+ * AI เขียน → ภาพประกอบ AI (ถ้าเปิด) → ทำภาพตามธีม (และภาพแบบไม่ขายถ้ามีกลุ่มที่ห้ามขาย) → ได้ข้อมูลพร้อมบันทึก
  * ใช้ร่วมกันระหว่างโพสต์รายวันกับปุ่ม "สร้างและโพสต์ทันที"
  */
-async function buildSlot({ date, slotPlan, groups, brand, history, outRoot, status, topicHint = '', onStep = () => {} }) {
-  onStep('AI กำลังเขียนโพสต์');
-  const { content, attempts, provider, model } = await writeSlot({ date, slotPlan, groups, brand, history, topicHint });
-  onStep(`ทำภาพ (เขียนโดย ${provider}/${model})`);
+async function buildSlot({
+  date, slotPlan, groups, brand, history, outRoot, status, style, news = [], aiImage = true, topicHint = '', onStep = () => {},
+}) {
+  onStep(`AI กำลังเขียนโพสต์ (ธีม ${getTheme(style.theme).name} · ${getTone(style.tone).name}${news.length ? ` · ข่าว ${news.length} รายการ` : ''})`);
+  const { content, attempts, provider, model } = await writeSlot({ date, slotPlan, groups, brand, history, topicHint, tone: style.tone, news });
+  let bgPath = null;
+  if (aiImage && content.image.visual) {
+    onStep(`สร้างภาพประกอบด้วย AI (เขียนโดย ${provider}/${model})`);
+    bgPath = (await generateAiImage({ visual: content.image.visual, theme: style.theme, outBase: path.join(outRoot, `${slotPlan.slot}-bg`) })).file;
+  }
+  onStep('จัดหน้าภาพตามธีม');
+  const newsItem = content.newsUrl ? news.find((n) => n.url === content.newsUrl) : null;
+  const image = newsItem && !content.image.source ? { ...content.image, source: newsItem.source } : content.image;
   const imagePath = path.join(outRoot, `${slotPlan.slot}.png`);
-  const main = await renderImage({ layout: slotPlan.pillar.template, image: content.image, brand, outFile: imagePath });
+  const main = await renderImage({ layout: slotPlan.pillar.template, image, brand, outFile: imagePath, theme: style.theme, bgPath });
   let softImagePath = null;
   if (slotPlan.groups.some((g) => g.mode === 'soft')) {
     softImagePath = path.join(outRoot, `${slotPlan.slot}-soft.png`);
-    await renderImage({ layout: SOFT_LAYOUT, image: content.softImage, brand, outFile: softImagePath });
+    await renderImage({ layout: SOFT_LAYOUT, image: content.softImage, brand, outFile: softImagePath, theme: style.theme, bgPath });
   }
   const variants = new Map(content.variants.map((v) => [v.groupId, v.text]));
   const items = slotPlan.groups.map((g) => ({ ...g, text: variants.get(g.groupId) }));
   const record = {
     date, slot: slotPlan.slot, pillar: slotPlan.pillar.id, isPromo: slotPlan.isPromo,
-    topic: content.topic, caption: content.caption, image: content.image,
+    topic: content.topic, caption: content.caption,
+    // เก็บข้อความภาพแบบไม่ขายไว้ด้วย เพื่อทำภาพใหม่ได้ตอนเปลี่ยนธีม
+    image: softImagePath ? { ...image, _soft: content.softImage } : image,
     imagePath, softImagePath, status, model: `${provider}/${model}`,
+    theme: style.theme, tone: style.tone, newsUrl: newsItem?.url ?? '', bgPath,
   };
   return { content, attempts, provider, model, record, items, overflow: main.overflow };
+}
+
+/** บันทึกโพสต์ + จองข่าวที่ใช้ไว้ไม่ให้โพสต์อื่นใช้ซ้ำ */
+function savePost(record, items) {
+  const id = db.insertPost(record, items);
+  if (record.newsUrl) db.markNewsUsed(record.newsUrl, id);
+  return id;
+}
+
+/** ดึงข่าวใหม่ก่อนสร้างโพสต์ (ล้มเหลวก็สร้างโพสต์ต่อได้) */
+async function refreshNews(onStep = () => {}) {
+  if (!env.useNews) return;
+  onStep('ดึงข่าวล่าสุด');
+  try {
+    await fetchAllNews();
+  } catch (e) {
+    console.warn(`ดึงข่าวไม่สำเร็จ: ${e.message}`);
+  }
 }
 
 /**
@@ -47,12 +104,14 @@ export async function generateDay({ date, dry = false }) {
   const groups = loadGroups();
   const pillarsCfg = loadPillars();
   if (!dry) db.expireBefore(date);
+  await refreshNews();
 
   const recent = db.recentPosts(60);
   const plan = planDay({ date, pillarsCfg, groups, recent, lastModes: db.lastModeByGroup() });
   const history = { topics: recent.map((p) => p.topic), captions: recent.map((p) => p.caption) };
   const outRoot = dry ? path.join(ROOT, 'out', date) : path.join(mediaDir(), date);
   const results = [];
+  const usedNews = new Set();
 
   try {
     for (const slotPlan of plan.slots) {
@@ -62,14 +121,19 @@ export async function generateDay({ date, dry = false }) {
         continue;
       }
       try {
+        // ธีม/น้ำเสียงไม่ซ้ำโพสต์ล่าสุด (รวมรอบเช้าที่เพิ่งสร้างในวันเดียวกัน)
+        const style = resolveStyle({}, [...results.filter((r) => r.record).map((r) => r.record).reverse(), ...recent]);
+        const news = newsFor().filter((n) => !usedNews.has(n.url));
         const { content, attempts, provider, model, record, items, overflow } = await buildSlot({
-          date, slotPlan, groups, brand, history, outRoot, status: env.requireApproval ? 'pending_approval' : 'approved',
+          date, slotPlan, groups, brand, history, outRoot, style, news, aiImage: !dry || env.aiImageProviders.length > 0,
+          status: env.requireApproval ? 'pending_approval' : 'approved',
         });
+        if (record.newsUrl) usedNews.add(record.newsUrl);
         const main = { overflow };
         if (dry) {
-          fs.writeFileSync(path.join(outRoot, `${slotPlan.slot}.json`), JSON.stringify({ plan: summarize(slotPlan), ...content }, null, 2));
+          fs.writeFileSync(path.join(outRoot, `${slotPlan.slot}.json`), JSON.stringify({ plan: summarize(slotPlan), style, ...content }, null, 2));
         } else {
-          record.id = db.insertPost(record, items);
+          record.id = savePost(record, items);
         }
         history.topics.unshift(content.topic);
         history.captions.unshift(content.caption);
@@ -196,7 +260,7 @@ export function startRegenerate(postId) {
     // โพสต์ด่วน: เขียนใหม่ด้วยหมวดเดิมและกลุ่มเดิม (เฉพาะกลุ่มที่ยังใช้ได้)
     const groups = loadGroups();
     const groupIds = db.itemsForPost(post.id).map((i) => i.group_id).filter((id) => groups.some((g) => g.id === id && isRealGroup(g)));
-    const task = createNowTask({ pillarId: post.pillar, groupIds, preview: true });
+    const task = createNowTask({ pillarId: post.pillar, groupIds, preview: true, theme: post.theme ?? '', tone: '' });
     startJob(`เขียน${slotLabel(post.slot)}ใหม่`, async (step) => {
       deleteDraft(post.id);
       return task(step);
@@ -231,27 +295,50 @@ export function postWarnings(post, items) {
 }
 
 /**
- * บันทึกการแก้ไขจาก Dashboard: แคปชัน ข้อความในภาพ (render ใหม่ถ้าเปลี่ยน) และข้อความของแต่ละกลุ่ม
+ * บันทึกการแก้ไขจาก Dashboard: แคปชัน ข้อความในภาพ ธีม ภาพประกอบ AI (render ใหม่เมื่อเปลี่ยน) และข้อความของแต่ละกลุ่ม
  * โพสต์ที่ลงเพจแล้วแก้ได้เฉพาะข้อความกลุ่ม
+ * @param {{ caption?: string, image?: object|null, items?: Record<number,string>, theme?: string, newAiImage?: boolean, removeAiImage?: boolean }} edits
+ *   theme: id ธีม, 'brand' หรือ 'random'
  */
-export async function savePostEdits(postId, { caption, image, items = {} }) {
+export async function savePostEdits(postId, { caption, image, items = {}, theme = '', newAiImage = false, removeAiImage = false }) {
   const post = db.getPost(postId);
   if (!post) throw new Error('ไม่พบโพสต์');
   const editable = post.status !== 'published';
   const fields = {};
   if (editable && typeof caption === 'string' && caption.trim() && caption.trim() !== post.caption) fields.caption = caption.trim();
   let rerendered = false;
-  if (editable && image) {
+  if (editable) {
     const old = JSON.parse(post.image_json || '{}');
-    const next = { ...old, ...image };
-    if (JSON.stringify(next) !== JSON.stringify(old)) {
+    const next = image ? { ...old, ...image } : old;
+    let nextTheme = post.theme || 'strata';
+    if (theme === 'brand') nextTheme = 'strata';
+    else if (theme === 'random') nextTheme = pickStyle({ mode: 'random', recent: [{ theme: post.theme }] }).theme;
+    else if (isTheme(theme)) nextTheme = theme;
+    let bgPath = removeAiImage ? null : post.bg_path;
+    const changed = JSON.stringify(next) !== JSON.stringify(old) || nextTheme !== post.theme || newAiImage || removeAiImage;
+    if (changed) {
       if (job.running) throw new Error('มีงานสร้างโพสต์กำลังทำอยู่ รอให้เสร็จก่อนค่อยทำภาพใหม่');
+      if (newAiImage) {
+        const r = await generateAiImage({
+          visual: next.visual || post.topic, theme: nextTheme,
+          outBase: path.join(path.dirname(post.image_path), `${post.slot}-bg-${Date.now()}`),
+        });
+        if (!r.file) throw new Error(`สร้างภาพ AI ไม่สำเร็จ: ${r.error ?? 'ไม่ทราบสาเหตุ'}`);
+        if (post.bg_path && post.bg_path !== r.file) fs.rmSync(post.bg_path, { force: true });
+        bgPath = r.file;
+      }
       try {
-        await renderImage({ layout: templateFor(post.pillar), image: next, brand: loadBrand(), outFile: post.image_path });
+        const brand = loadBrand();
+        await renderImage({ layout: templateFor(post.pillar), image: next, brand, outFile: post.image_path, theme: nextTheme, bgPath });
+        if (post.soft_image_path && next._soft) {
+          // ภาพแบบไม่ขายใช้ธีมและภาพประกอบเดียวกัน (ข้อความเดิม)
+          const { _soft: soft } = next;
+          await renderImage({ layout: SOFT_LAYOUT, image: soft, brand, outFile: post.soft_image_path, theme: nextTheme, bgPath });
+        }
       } finally {
         await closeRenderer();
       }
-      fields.image_json = JSON.stringify(next);
+      Object.assign(fields, { image_json: JSON.stringify(next), theme: nextTheme, bg_path: bgPath });
       rerendered = true;
     }
   }
@@ -271,7 +358,13 @@ export function startCreateNow(opts) {
   startJob(opts.preview === false ? 'สร้างและโพสต์ทันที' : 'สร้างร่างโพสต์ด่วน', createNowTask(opts));
 }
 
-function createNowTask({ pillarId = '', topicHint = '', groupIds = [], preview = true }) {
+/**
+ * @param {{ pillarId?: string, topicHint?: string, groupIds?: string[], preview?: boolean,
+ *   theme?: string, tone?: string, aiImage?: boolean, newsUrl?: string }} o
+ *   theme: '' = อัตโนมัติ, 'brand' = ธีมเพจ, 'random' = สุ่ม, หรือ id · newsUrl: '' = ให้ AI เลือก, 'none' = ไม่ใช้ข่าว, หรือลิงก์ข่าว
+ */
+function createNowTask({ pillarId = '', topicHint = '', groupIds = [], preview = true, theme = '', tone = '', aiImage = true, newsUrl = '' }) {
+  const news = newsFor({ newsUrl });
   const all = loadGroups();
   const chosen = [...new Set(groupIds)].map((id) => {
     const g = all.find((x) => x.id === id);
@@ -288,17 +381,18 @@ function createNowTask({ pillarId = '', topicHint = '', groupIds = [], preview =
     step('วางแผนหมวดและกลุ่ม');
     const slotPlan = planNow({ date, slot, pillarsCfg: loadPillars(), pillarId, groups: chosen, recent, lastModes: db.lastModeByGroup() });
     const history = { topics: recent.map((p) => p.topic), captions: recent.map((p) => p.caption) };
+    const style = resolveStyle({ theme, tone }, recent);
     let built;
     try {
       built = await buildSlot({
-        date, slotPlan, groups: chosen, brand, history, topicHint: hint, onStep: step,
+        date, slotPlan, groups: chosen, brand, history, topicHint: hint, onStep: step, style, news, aiImage,
         outRoot: path.join(mediaDir(), date), status: preview ? 'pending_approval' : 'approved',
       });
     } finally {
       await closeRenderer();
     }
     step('บันทึกร่าง');
-    const id = db.insertPost(built.record, built.items);
+    const id = savePost(built.record, built.items);
     db.logRun('create-now', true, `${slot} ${built.record.topic}`);
     if (preview) return { summary: `ร่างพร้อมแล้ว: ${built.record.topic}`, url: `/post/${id}` };
 
@@ -316,7 +410,7 @@ export function deleteDraft(postId) {
   if (!post) throw new Error('ไม่พบโพสต์');
   if (post.status === 'published') throw new Error('โพสต์นี้ลงเพจแล้ว ลบจากที่นี่ไม่ได้ (ลบที่ Facebook)');
   db.deletePost(post.id);
-  for (const f of [post.image_path, post.soft_image_path]) {
+  for (const f of [post.image_path, post.soft_image_path, post.bg_path]) {
     if (f) fs.rmSync(f, { force: true });
   }
   return post;

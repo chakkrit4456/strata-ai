@@ -1,0 +1,46 @@
+# แหล่งข่าวสำหรับโพสต์ตามเทรนด์ — แก้ได้จากหน้า "ข่าว/เทรนด์" ใน Dashboard
+# ระบบดึงข่าววันละครั้งก่อนสร้างโพสต์ เก็บไว้ 7 วัน และไม่ใช้ข่าวเดิมซ้ำ
+maxAgeDays: 3
+feeds:
+  - id: blognone
+    name: Blognone
+    url: https://www.blognone.com/atom.xml
+    lang: th
+    enabled: true
+  - id: thestandard-tech
+    name: THE STANDARD Tech
+    url: https://thestandard.co/category/news/tech/feed/
+    lang: th
+    enabled: true
+  - id: techsauce
+    name: Techsauce
+    url: https://techsauce.co/feed
+    lang: th
+    enabled: true
+  - id: beartai
+    name: beartai
+    url: https://www.beartai.com/feed
+    lang: th
+    enabled: true
+  - id: theverge
+    name: The Verge
+    url: https://www.theverge.com/rss/index.xml
+    lang: en
+    enabled: true
+  - id: techcrunch
+    name: TechCrunch
+    url: https://techcrunch.com/feed/
+    lang: en
+    enabled: true
+  - id: hackernews
+    name: Hacker News
+    url: https://news.ycombinator.com/rss
+    lang: en
+    enabled: false
+# ค้นข่าวล่าสุดจาก Google News ตามคำค้น (ภาษาไทย)
+googleNews:
+  - AI ธุรกิจ
+  - เว็บไซต์ SME
+  - ระบบอัตโนมัติ
+  - ขายของออนไลน์
+  - ความปลอดภัยไซเบอร์

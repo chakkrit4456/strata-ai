@@ -5,6 +5,8 @@ import * as db from '../../db.js';
 import { savePostEdits, startRegenerate, postWarnings, jobState } from '../../jobs.js';
 import { esc, badge, btn, layout, field, area, select, csrfInput, lines } from '../ui.js';
 import { STATUS, ITEM, MODE, mediaUrl, redirect } from './shared.js';
+import { themePicker, PICKER_CSS } from '../picker.js';
+import { getTheme, getTone } from '../../image/themes.js';
 
 function editPage(ctx, post) {
   const items = db.itemsForPost(post.id);
@@ -30,8 +32,18 @@ function editPage(ctx, post) {
             ${field('หัวข้อ', 'topic_ro', post.topic, { attrs: 'disabled' })}
             ${area('แคปชันโพสต์เพจ', 'caption', post.caption, { rows: 12 })}
           </div></div></section>
+        ${PICKER_CSS}<section class="card"><h2 style="margin-top:0">ธีมและภาพประกอบ</h2>
+          <p class="muted">ตอนนี้: ธีม <b>${esc(getTheme(post.theme).name)}</b> · สไตล์คำบรรยาย ${esc(getTone(post.tone).name)}
+            ${post.news_url ? ` · <a href="${esc(post.news_url)}" target="_blank" rel="noopener">ข่าวที่ใช้ ↗</a>` : ''}
+            ${post.bg_path ? ' · มีภาพประกอบจาก AI' : ''}</p>
+          <fieldset style="border:0;padding:0;margin:0"${dis}>
+          <div class="field"><span>เปลี่ยนธีม (ทำภาพใหม่ทันทีตอนบันทึก)</span>${themePicker('theme', '', { auto: 'คงธีมเดิม' })}</div>
+          <label class="check"><input type="checkbox" name="newAiImage" value="1"> สร้างภาพประกอบ AI ใหม่</label>
+          ${post.bg_path ? '<label class="check"><input type="checkbox" name="removeAiImage" value="1"> เอาภาพประกอบออก</label>' : ''}
+          ${field('คำบรรยายภาพประกอบสำหรับ AI (ภาษาอังกฤษ)', 'img_visual', img.visual ?? '', { hint: 'ใช้ตอนกด "สร้างภาพประกอบ AI ใหม่" เช่น "small cafe owner checking orders on a tablet"' })}
+          </fieldset></section>
         <section class="card"><h2 style="margin-top:0">ข้อความในภาพ</h2>
-          <p class="muted">ถ้าแก้ส่วนนี้ ระบบจะทำภาพใหม่ให้ตอนบันทึก · ใส่ | ใน headline เพื่อให้ส่วนท้ายเป็นสีเขียว</p>
+          <p class="muted">ถ้าแก้ส่วนนี้ ระบบจะทำภาพใหม่ให้ตอนบันทึก · ใส่ | ใน headline เพื่อให้ส่วนท้ายเป็นสีเน้น</p>
           <fieldset style="border:0;padding:0;margin:0"${dis}>
           <div class="grid2">${field('ป้ายมุมขวา (kicker)', 'img_kicker', img.kicker)}${field('ข้อความท้ายภาพ (cta)', 'img_cta', img.cta)}</div>
           ${field('หัวเรื่อง (headline)', 'img_headline', img.headline)}
@@ -75,9 +87,13 @@ export const routes = [
       code: String(f.img_code ?? '').replace(/\r\n/g, '\n').trimEnd(),
       cta: String(f.img_cta ?? '').trim(),
       packageId: String(f.img_packageId ?? 'all'),
+      ...(f.img_visual !== undefined ? { visual: String(f.img_visual).trim().slice(0, 300) } : {}),
     };
     try {
-      const r = await savePostEdits(Number(id), { caption: f.caption, image, items });
+      const r = await savePostEdits(Number(id), {
+        caption: f.caption, image, items,
+        theme: String(f.theme ?? ''), newAiImage: f.newAiImage === '1', removeAiImage: f.removeAiImage === '1',
+      });
       return redirect(`/post/${id}`, { ok: r.rerendered ? 'บันทึกแล้ว และทำภาพใหม่แล้ว' : 'บันทึกแล้ว' });
     } catch (e) {
       return redirect(`/post/${id}`, { err: e.message });

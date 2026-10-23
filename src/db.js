@@ -35,6 +35,18 @@ CREATE TABLE IF NOT EXISTS group_items (
   UNIQUE (post_id, group_id)
 );
 CREATE INDEX IF NOT EXISTS idx_items_group ON group_items (group_id, id);
+CREATE TABLE IF NOT EXISTS news (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  url          TEXT NOT NULL UNIQUE,
+  title        TEXT NOT NULL,
+  source       TEXT NOT NULL,
+  lang         TEXT NOT NULL,
+  published_at TEXT,
+  summary      TEXT,
+  fetched_at   TEXT NOT NULL,
+  used_post_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_news_time ON news (published_at);
 CREATE TABLE IF NOT EXISTS runs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   job        TEXT NOT NULL,
@@ -49,7 +61,9 @@ let db;
 // เพิ่มคอลัมน์ให้ฐานข้อมูลเดิมโดยไม่ต้องลบข้อมูล
 function migrate(d) {
   const cols = new Set(d.prepare('PRAGMA table_info(posts)').all().map((c) => c.name));
-  if (!cols.has('model')) d.exec('ALTER TABLE posts ADD COLUMN model TEXT');
+  for (const c of ['model', 'theme', 'tone', 'news_url', 'bg_path']) {
+    if (!cols.has(c)) d.exec(`ALTER TABLE posts ADD COLUMN ${c} TEXT`);
+  }
 }
 
 export function getDb() {
@@ -96,10 +110,11 @@ export function insertPost(post, items) {
   d.exec('BEGIN');
   try {
     const { lastInsertRowid } = d.prepare(`INSERT INTO posts
-      (date, slot, pillar, is_promo, topic, caption, image_json, image_path, soft_image_path, status, model, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      (date, slot, pillar, is_promo, topic, caption, image_json, image_path, soft_image_path, status, model, theme, tone, news_url, bg_path, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
       post.date, post.slot, post.pillar, post.isPromo ? 1 : 0, post.topic, post.caption,
-      JSON.stringify(post.image), post.imagePath, post.softImagePath ?? null, post.status, post.model ?? null, nowIso());
+      JSON.stringify(post.image), post.imagePath, post.softImagePath ?? null, post.status, post.model ?? null,
+      post.theme ?? null, post.tone ?? null, post.newsUrl || null, post.bgPath ?? null, nowIso());
     const ins = d.prepare('INSERT INTO group_items (post_id, group_id, mode, text, status) VALUES (?, ?, ?, ?, ?)');
     for (const it of items) ins.run(lastInsertRowid, it.groupId, it.mode, it.text, 'waiting');
     d.exec('COMMIT');
@@ -194,4 +209,34 @@ export function recentRuns(limit = 200) {
 export function draftPosts(limit = 50) {
   return getDb().prepare(`SELECT * FROM posts WHERE status IN ('pending_approval','approved','failed')
     ORDER BY date DESC, created_at DESC LIMIT ?`).all(limit);
+}
+
+// ---------- ข่าว ----------
+
+export function upsertNews(items) {
+  const ins = getDb().prepare(`INSERT INTO news (url, title, source, lang, published_at, summary, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(url) DO NOTHING`);
+  let added = 0;
+  for (const n of items) added += ins.run(n.url, n.title, n.source, n.lang, n.publishedAt || null, n.summary || '', nowIso()).changes;
+  return added;
+}
+
+/** ข่าวล่าสุดที่ยังไม่เคยใช้ทำโพสต์ */
+export function freshNews({ days = 3, limit = 30, includeUsed = false } = {}) {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  return getDb().prepare(`SELECT * FROM news WHERE COALESCE(published_at, fetched_at) >= ?
+    ${includeUsed ? '' : 'AND used_post_id IS NULL'} ORDER BY COALESCE(published_at, fetched_at) DESC LIMIT ?`).all(since, limit);
+}
+
+export function getNewsByUrl(url) {
+  return getDb().prepare('SELECT * FROM news WHERE url = ?').get(url);
+}
+
+export function markNewsUsed(url, postId) {
+  getDb().prepare('UPDATE news SET used_post_id = ? WHERE url = ?').run(postId, url);
+}
+
+export function pruneNews(days = 14) {
+  const before = new Date(Date.now() - days * 86_400_000).toISOString();
+  return getDb().prepare('DELETE FROM news WHERE fetched_at < ? AND used_post_id IS NULL').run(before).changes;
 }

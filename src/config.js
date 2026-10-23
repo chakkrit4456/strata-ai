@@ -5,7 +5,7 @@ import { CONFIG_DIR } from './env.js';
 import { writeAtomic } from './fsutil.js';
 
 const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-export const TEMPLATES = ['tip', 'showcase', 'package', 'fun', 'question'];
+export const TEMPLATES = ['tip', 'news', 'showcase', 'package', 'fun', 'question'];
 
 const file = (name) => path.join(CONFIG_DIR, name);
 const read = (name) => YAML.parse(fs.readFileSync(file(name), 'utf8')) ?? {};
@@ -246,4 +246,38 @@ export function groupIdFromUrl(url, taken) {
   let id = /^\d+$/.test(slug) ? `g-${slug}` : slug;
   for (let i = 2; taken.has(id); i++) id = `${slug}-${i}`;
   return id;
+}
+
+// ---------- แหล่งข่าว ----------
+
+export function validateNews(cfg) {
+  const maxAgeDays = Number(cfg?.maxAgeDays ?? 3);
+  if (!(maxAgeDays >= 1 && maxAgeDays <= 14)) fail('อายุข่าวต้องอยู่ระหว่าง 1–14 วัน');
+  const ids = new Set();
+  const feeds = (cfg?.feeds ?? []).map((f, i) => {
+    const id = text(f.id, `แหล่งข่าวที่ ${i + 1}: id`, { max: 40 });
+    if (!/^[a-z0-9-]+$/.test(id)) fail(`แหล่งข่าว ${id}: id ใช้ได้แค่ a-z 0-9 -`);
+    if (ids.has(id)) fail(`แหล่งข่าว id ซ้ำ: ${id}`);
+    ids.add(id);
+    const url = text(f.url, `แหล่งข่าว ${id}: ลิงก์ RSS`, { max: 500 });
+    if (!/^https:\/\/[^\s]+$/.test(url)) fail(`แหล่งข่าว ${id}: ลิงก์ต้องขึ้นต้นด้วย https://`);
+    return {
+      id, url,
+      name: text(f.name ?? id, `แหล่งข่าว ${id}: ชื่อ`, { max: 80 }),
+      lang: f.lang === 'en' ? 'en' : 'th',
+      enabled: f.enabled !== false,
+    };
+  });
+  const googleNews = list(cfg?.googleNews ?? [], 'คำค้น Google News').slice(0, 15);
+  return { maxAgeDays, feeds, googleNews };
+}
+
+export function loadNews() {
+  return validateNews(fs.existsSync(file('news.yaml')) ? read('news.yaml') : {});
+}
+
+export function saveNews(cfg) {
+  const clean = validateNews(cfg);
+  save('news.yaml', '# แหล่งข่าวสำหรับโพสต์ตามเทรนด์ — แก้ได้จากหน้า "ข่าว/เทรนด์" ใน Dashboard', clean);
+  return clean;
 }

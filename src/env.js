@@ -32,6 +32,15 @@ function build() {
     openrouterKey: str('OPENROUTER_API_KEY'),
     openrouterModel: str('OPENROUTER_MODEL', 'google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free'),
 
+    // ภาพประกอบจาก AI: ลองตามลำดับ ใส่ off เพื่อปิด
+    aiImageProviders: str('AI_IMAGE_PROVIDERS', 'pollinations,gemini').toLowerCase() === 'off' ? []
+      : str('AI_IMAGE_PROVIDERS', 'pollinations,gemini').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+    geminiImageModel: str('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image'),
+    // ธีมโพสต์อัตโนมัติ: mix = ใช้ธีมเพจทุกๆ THEME_BRAND_EVERY โพสต์ ที่เหลือสุ่ม | random | brand
+    themeMode: ['mix', 'random', 'brand'].includes(str('THEME_MODE')) ? str('THEME_MODE') : 'mix',
+    themeBrandEvery: Math.min(10, Math.max(2, Number(str('THEME_BRAND_EVERY', '3')) || 3)),
+    useNews: bool('USE_NEWS', true),
+
     fbPageId: str('FB_PAGE_ID'),
     fbPageToken: str('FB_PAGE_TOKEN'),
     fbGraphVersion: str('FB_GRAPH_VERSION', 'v23.0'),

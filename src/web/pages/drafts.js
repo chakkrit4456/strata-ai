@@ -6,6 +6,7 @@ import { postWarnings, deleteDraft, jobState } from '../../jobs.js';
 import { esc, badge, btn, layout } from '../ui.js';
 import { STATUS, MODE, mediaUrl, redirect } from './shared.js';
 import { jobBanner } from './queue.js';
+import { getTheme, getTone } from '../../image/themes.js';
 
 const WHEN = { morning: '09:20–09:40 น. (ถ้าอนุมัติแล้ว)', evening: '19:20–19:40 น. (ถ้าอนุมัติแล้ว)' };
 
@@ -27,6 +28,8 @@ function draftCard(post, { groups, pillars, csrf, running }) {
           <tr><td class="muted">จะโพสต์ลงเพจ</td><td>${esc(when)}</td></tr>
           <tr><td class="muted">หมวด</td><td>${esc(pillar?.label ?? post.pillar)} ${post.is_promo ? badge(['โปรโมท', 'warn']) : badge(['ไม่ขาย', 'info'])}</td></tr>
           <tr><td class="muted">เขียนโดย</td><td>${esc(post.model ?? '-')}</td></tr>
+          <tr><td class="muted">ธีม / สไตล์</td><td>${esc(getTheme(post.theme).name)} · ${esc(getTone(post.tone).name)}${post.bg_path ? ' · ภาพประกอบ AI' : ''}</td></tr>
+          ${post.news_url ? `<tr><td class="muted">ข่าวที่ใช้</td><td><a href="${esc(post.news_url)}" target="_blank" rel="noopener">${esc(db.getNewsByUrl(post.news_url)?.title ?? post.news_url)} ↗</a></td></tr>` : ''}
           <tr><td class="muted">ข้อความในภาพ</td><td>${esc([img.kicker, img.headline?.replace('|', ''), img.subhead].filter(Boolean).join(' · '))}</td></tr>
         </tbody></table>
         ${post.error ? `<div class="flash bad">${esc(post.error)}</div>` : ''}

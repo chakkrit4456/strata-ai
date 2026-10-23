@@ -14,8 +14,10 @@ import { routes as pillars } from './pages/pillars.js';
 import { routes as settings } from './pages/settings.js';
 import { routes as drafts } from './pages/drafts.js';
 import { routes as now } from './pages/now.js';
+import { routes as themes } from './pages/themes.js';
+import { routes as newsPage } from './pages/news.js';
 
-const ROUTES = [...queue, ...drafts, ...now, ...post, ...history, ...groups, ...brand, ...pillars, ...settings];
+const ROUTES = [...queue, ...drafts, ...now, ...themes, ...newsPage, ...post, ...history, ...groups, ...brand, ...pillars, ...settings];
 const COOKIE = 'strata_sid';
 const MAX_BODY = 1_000_000;
 

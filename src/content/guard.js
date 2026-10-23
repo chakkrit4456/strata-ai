@@ -70,7 +70,7 @@ function checkImage(label, img) {
  * @param {object} slotPlan  { isPromo, groups: [{groupId, mode}] }
  * @param {object} ctx       { brand, history: { topics: string[], captions: string[] } }
  */
-export function checkSlot(content, slotPlan, { brand, history = { topics: [], captions: [] } }) {
+export function checkSlot(content, slotPlan, { brand, history = { topics: [], captions: [] }, news = null, requireNews = false }) {
   const issues = [];
   const pageMode = slotPlan.isPromo ? 'promo' : 'value';
   issues.push(...checkText('แคปชันเพจ', content.caption, { brand, mode: pageMode, range: LIMITS.caption }));
@@ -103,6 +103,17 @@ export function checkSlot(content, slotPlan, { brand, history = { topics: [], ca
   }
   for (const id of byGroup.keys()) {
     if (!slotPlan.groups.some((g) => g.groupId === id)) issues.push(`มีข้อความของกลุ่ม ${id} ที่ไม่ได้อยู่ในแผน`);
+  }
+
+  // ข่าว: ต้องเป็นข่าวจากรายการที่ให้เท่านั้น (กันแต่งข่าว) และต้องบอกที่มาในแคปชัน
+  if (news) {
+    const url = String(content.newsUrl ?? '').trim();
+    const item = url ? news.find((n) => n.url === url) : null;
+    if (url && !item) issues.push('newsUrl ไม่ตรงกับลิงก์ในรายการข่าวที่ให้ (ห้ามแต่งข่าว)');
+    if (requireNews && !url) issues.push('หมวดข่าว/เทรนด์ต้องเลือกข่าว 1 ข่าวจากรายการ และใส่ newsUrl');
+    if (item && !content.caption.toLowerCase().includes(item.source.toLowerCase().slice(0, 12))) {
+      issues.push(`แคปชันต้องบอกที่มาของข่าว (เช่น "ที่มา: ${item.source}")`);
+    }
   }
   return { ok: issues.length === 0, issues };
 }
