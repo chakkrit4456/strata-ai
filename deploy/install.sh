@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# ติดตั้งบน Debian 13 (รันด้วย root หรือ sudo จากโฟลเดอร์โปรเจกต์)
-#   sudo bash deploy/install.sh
+# ติดตั้งบน Debian 13 (รันด้วย root จากโฟลเดอร์โปรเจกต์ — Debian minimal ไม่มี sudo จึงใช้ runuser)
+#   bash deploy/install.sh
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,9 +22,9 @@ chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 echo "==> npm install + Chromium (สำหรับแปลง HTML เป็นภาพ)"
 cd "$APP_DIR"
-sudo -u "$APP_USER" npm ci --omit=dev
+runuser -u "$APP_USER" -- npm ci --omit=dev
 npx playwright install-deps chromium
-sudo -u "$APP_USER" env PLAYWRIGHT_BROWSERS_PATH="$APP_DIR/.browsers" npx playwright install chromium
+runuser -u "$APP_USER" -- env PLAYWRIGHT_BROWSERS_PATH="$APP_DIR/.browsers" npx playwright install chromium
 
 [ -f .env ] || { cp .env.example .env; chown "$APP_USER:$APP_USER" .env; chmod 600 .env; echo "!! แก้ค่าใน $APP_DIR/.env ก่อนเปิดใช้"; }
 [ -f config/groups.yaml ] || { cp config/groups.example.yaml config/groups.yaml; chown "$APP_USER:$APP_USER" config/groups.yaml; echo "!! แก้รายชื่อกลุ่มใน config/groups.yaml"; }
@@ -38,5 +38,5 @@ systemctl enable --now strata-web.service strata-generate.timer strata-publish-m
 
 echo
 echo "เสร็จแล้ว ตรวจด้วย:"
-echo "  sudo -u $APP_USER node --disable-warning=ExperimentalWarning src/cli.js check"
+echo "  runuser -u $APP_USER -- node --disable-warning=ExperimentalWarning src/cli.js check"
 echo "  systemctl list-timers 'strata-*'"

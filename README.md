@@ -27,11 +27,17 @@
 ```bash
 git clone <repo> /opt/strata-automation   # หรือคัดลอกโฟลเดอร์นี้ไป
 cd /opt/strata-automation
-sudo bash deploy/install.sh
-sudo nano .env                     # ใส่คีย์ต่างๆ (ดูหัวข้อด้านล่าง)
-sudo nano config/groups.yaml       # ใส่กลุ่มจริงและกฎของแต่ละกลุ่ม
-sudo -u strata node --disable-warning=ExperimentalWarning src/cli.js check
-sudo systemctl restart strata-web
+bash deploy/install.sh              # รันด้วย root (Debian minimal ไม่มี sudo)
+nano .env                          # ใส่คีย์ต่างๆ (ดูหัวข้อด้านล่าง)
+nano config/groups.yaml            # ใส่กลุ่มจริงและกฎของแต่ละกลุ่ม
+runuser -u strata -- node --disable-warning=ExperimentalWarning src/cli.js check
+systemctl restart strata-web
+```
+
+อัปเดตเป็นเวอร์ชันล่าสุด (รันด้วย root):
+
+```bash
+cd /opt/strata-ai && runuser -u strata -- git pull && runuser -u strata -- npm ci --omit=dev && systemctl restart strata-web
 ```
 
 ควรเปิด Dashboard ผ่าน HTTPS (เช่น Caddy หรือ nginx ทำ reverse proxy ไปที่พอร์ต 8787) แล้วตั้ง `PUBLIC_URL` ให้ตรงกับโดเมน
@@ -99,7 +105,7 @@ npm test                                       # unit tests
 - `config/groups.yaml` รายชื่อกลุ่ม กฎ และวันที่โปรโมทได้
 - `src/image/template.html` หน้าตาภาพ (1080×1350) มี 5 เลย์เอาต์: tip, showcase, package, fun, question
 - `BG_IMAGE_DIR` โฟลเดอร์ภาพพื้นหลังที่ไม่มีตัวอักษร (เช่น ภาพ abstract ที่สร้างจาก AI) ระบบจะสุ่มมาใช้แบบจางๆ
-- เวลาโพสต์: แก้ `deploy/systemd/strata-publish-*.timer` แล้วรัน `sudo bash deploy/install.sh` ใหม่
+- เวลาโพสต์: แก้ `deploy/systemd/strata-publish-*.timer` แล้วรัน `bash deploy/install.sh` ใหม่ (ด้วย root)
 
 ## ข้อควรรู้
 
