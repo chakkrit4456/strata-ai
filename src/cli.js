@@ -57,7 +57,7 @@ switch (cmd) {
     const { runHealth } = await import('./health.js');
     console.log(`โหมดอนุมัติ: ${env.requireApproval ? 'เปิด' : 'ปิด'} | AI: ${env.aiProviders.join(' → ')}`);
     const rows = await runHealth({ telegramTest: values.test });
-    for (const r of rows) console.log(`${r.ok === null ? '·' : r.ok ? '✓' : '✗'} ${r.name}${r.detail ? ` — ${r.detail}` : ''}`);
+    for (const r of rows) console.log(`${r.warn ? '!' : r.ok === null ? '·' : r.ok ? '✓' : '✗'} ${r.name}${r.detail ? ` — ${r.detail}` : ''}`);
     if (rows.some((r) => r.ok === false)) process.exitCode = 1;
     break;
   }

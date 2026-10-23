@@ -81,3 +81,21 @@ test('parseContent แก้ packageId และรวมแฮชแท็ก',
   assert.equal(c.image.packageId, 'all');
   assert.match(c.caption, /#devtip$/);
 });
+
+test('tryModels ลองโมเดลถัดไปเมื่อตัวแรกโดนจำกัด แต่หยุดเมื่อคีย์ผิด', async () => {
+  const { tryModels } = await import('../src/ai/errors.js');
+  const seen = [];
+  const r = await tryModels(['a', 'b'], async (m) => {
+    seen.push(m);
+    if (m === 'a') throw new ProviderError('x', '429', { status: 429 });
+    return m;
+  });
+  assert.equal(r, 'b');
+  seen.length = 0;
+  await assert.rejects(tryModels(['a', 'b'], async (m) => {
+    seen.push(m);
+    throw new ProviderError('x', '401', { status: 401, fatal: true });
+  }));
+  assert.deepEqual(seen, ['a']);
+  assert.ok(new ProviderError('x', 'y', { status: 429 }).rateLimited);
+});

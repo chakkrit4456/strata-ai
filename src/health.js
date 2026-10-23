@@ -11,7 +11,7 @@ import { notify, telegramEnabled } from './notify/telegram.js';
  */
 export async function runHealth({ telegramTest = false } = {}) {
   const out = [];
-  const add = (name, ok, detail = '') => out.push({ name, ok, detail });
+  const add = (name, ok, detail = '', warn = false) => out.push({ name, ok, detail, warn });
 
   for (const [name, fn] of [['brand.yaml', loadBrand], ['pillars.yaml', readPillars], ['กลุ่ม', loadGroups]]) {
     try {
@@ -31,7 +31,9 @@ export async function runHealth({ telegramTest = false } = {}) {
       const r = await p.generate({ system: 'ตอบสั้นที่สุด', messages: [{ role: 'user', content: 'ตอบคำว่า OK' }] });
       add(`AI: ${p.name}`, true, r.model);
     } catch (e) {
-      add(`AI: ${p.name}`, false, e.message.slice(0, 300));
+      // โดนจำกัดชั่วคราว = คีย์ใช้ได้ แค่ต้นทางไม่ว่างตอนนี้ (เกิดบ่อยกับโมเดลฟรี) — ไม่นับว่าไม่ผ่าน
+      if (e.rateLimited) add(`AI: ${p.name}`, null, `คีย์ใช้ได้ แต่โมเดลโดนจำกัดชั่วคราว ลองใหม่ภายหลังหรือเพิ่มโมเดลสำรอง — ${e.message.slice(0, 250)}`, true);
+      else add(`AI: ${p.name}`, false, e.message.slice(0, 300));
     }
   }));
 

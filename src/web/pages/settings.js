@@ -39,7 +39,7 @@ function page(ctx, { health } = {}) {
     <div class="grid2"><div>${field(label, key, '', { type: 'password', hint: env[prop] ? `ตั้งไว้แล้ว ${maskSecret(env[prop])} — เว้นว่างเพื่อใช้ค่าเดิม` : 'ยังไม่ได้ตั้ง', attrs: 'autocomplete="off"' })}</div>
     <div class="field"><span>&nbsp;</span>${env[prop] ? check('ลบค่านี้', `clear_${key}`, false) : ''}</div></div></div>`).join('');
   const healthHtml = health ? `<section class="card"><h2 style="margin-top:0">ผลทดสอบ</h2><table class="table"><tbody>
-    ${health.map((r) => `<tr><td>${badge(r.ok === null ? ['ไม่บังคับ', 'mute'] : r.ok ? ['ผ่าน', 'ok'] : ['ไม่ผ่าน', 'bad'])}</td><td>${esc(r.name)}</td><td class="muted">${esc(r.detail)}</td></tr>`).join('')}
+    ${health.map((r) => `<tr><td>${badge(r.warn ? ['โดนจำกัดชั่วคราว', 'warn'] : r.ok === null ? ['ไม่บังคับ', 'mute'] : r.ok ? ['ผ่าน', 'ok'] : ['ไม่ผ่าน', 'bad'])}</td><td>${esc(r.name)}</td><td class="muted">${esc(r.detail)}</td></tr>`).join('')}
     </tbody></table></section>` : '';
 
   return {
@@ -56,7 +56,7 @@ function page(ctx, { health } = {}) {
           <p class="muted">เวลาโพสต์แก้ได้ที่ deploy/systemd/*.timer บนเซิร์ฟเวอร์แล้วรัน install.sh ใหม่</p></section>
         <section class="card"><h2 style="margin-top:0">AI</h2>
           ${field('ลำดับที่ลอง (คั่นด้วย ,)', 'AI_PROVIDERS', env.aiProviders.join(','), { hint: `ใช้ได้: ${PROVIDER_NAMES.join(', ')} — ถ้าเจ้าแรกล่ม/โควตาหมด ระบบใช้เจ้าถัดไปเอง` })}
-          <div class="grid3">${field('โมเดล Gemini', 'GEMINI_MODEL', env.geminiModel)}${field('โมเดล Groq', 'GROQ_MODEL', env.groqModel)}${field('โมเดล OpenRouter', 'OPENROUTER_MODEL', env.openrouterModel)}</div></section>
+          <div class="grid3">${field('โมเดล Gemini', 'GEMINI_MODEL', env.geminiModel, { hint: 'ใส่หลายตัวคั่นด้วย , เพื่อเป็นตัวสำรอง' })}${field('โมเดล Groq', 'GROQ_MODEL', env.groqModel)}${field('โมเดล OpenRouter', 'OPENROUTER_MODEL', env.openrouterModel)}</div></section>
         <section class="card"><h2 style="margin-top:0">Facebook และ Telegram</h2>
           <div class="grid3">${field('Page ID (Graph API)', 'FB_PAGE_ID', env.fbPageId)}${field('Graph API version', 'FB_GRAPH_VERSION', env.fbGraphVersion)}${field('Telegram chat id', 'TELEGRAM_CHAT_ID', env.telegramChatId)}</div>
           ${field('ลิงก์ Dashboard สาธารณะ', 'PUBLIC_URL', env.publicUrl, { hint: 'ใช้ในข้อความแจ้งเตือน เช่น https://strata.itdev.in.th' })}</section>
@@ -72,7 +72,8 @@ function page(ctx, { health } = {}) {
   };
 }
 
-const MODEL = /^[\w./:-]{1,120}$/;
+// ใส่หลายโมเดลคั่นด้วย , ได้ (ตัวสำรองเมื่อตัวแรกโดนจำกัด)
+const MODEL = /^[\w./:-]+(\s*,\s*[\w./:-]+){0,5}$/;
 
 function fromForm(f) {
   const out = {};
@@ -84,7 +85,7 @@ function fromForm(f) {
   for (const k of ['GEMINI_MODEL', 'GROQ_MODEL', 'OPENROUTER_MODEL']) {
     const v = String(f[k] ?? '').trim();
     if (!MODEL.test(v)) throw new Error(`${k}: ชื่อโมเดลไม่ถูกต้อง`);
-    out[k] = v;
+    out[k] = v.split(',').map((x) => x.trim()).join(',');
   }
   const pageId = String(f.FB_PAGE_ID ?? '').trim();
   if (pageId && !/^\d{5,25}$/.test(pageId)) throw new Error('Page ID ต้องเป็นตัวเลข');

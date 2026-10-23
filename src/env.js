@@ -30,7 +30,7 @@ function build() {
     groqKey: str('GROQ_API_KEY'),
     groqModel: str('GROQ_MODEL', 'openai/gpt-oss-120b'),
     openrouterKey: str('OPENROUTER_API_KEY'),
-    openrouterModel: str('OPENROUTER_MODEL', 'google/gemma-4-31b-it:free'),
+    openrouterModel: str('OPENROUTER_MODEL', 'google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free'),
 
     fbPageId: str('FB_PAGE_ID'),
     fbPageToken: str('FB_PAGE_TOKEN'),
