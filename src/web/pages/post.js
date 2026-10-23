@@ -52,6 +52,10 @@ function editPage(ctx, post) {
           ${area('ตัวเลือกโพล (เฉพาะเทมเพลต question)', 'img_options', (img.options ?? []).join('\n'), { rows: 4 })}</div>
           ${area('โค้ด/คำสั่ง (เฉพาะเทมเพลต tip)', 'img_code', img.code, { rows: 4, mono: true })}
           ${select('แพ็กเกจในภาพ (เฉพาะเทมเพลต package)', 'img_packageId', img.packageId ?? 'all', [['all', 'ทั้งหมด'], ...pkgs])}
+          ${post.pillar === 'banner' || (img.features ?? []).length ? `
+          ${area('ความสามารถในแบนเนอร์ (บรรทัดละ 1: ไอคอน | หัวข้อ | คำอธิบาย)', 'img_features', (img.features ?? []).map((x) => `${x.icon} | ${x.title} | ${x.desc}`).join('\n'), { rows: 4, hint: 'ไอคอน: shield, monitor, chart, report, cart, calendar, database, cloud, bot, code, phone, users, bell, lock, rocket, settings' })}
+          ${field('สโลแกนแถบล่าง', 'img_slogan', img.slogan ?? '')}
+          ${field('แท็กแถบล่าง (คั่นด้วย ,)', 'img_tags', (img.tags ?? []).join(', '))}` : ''}
           </fieldset></section>
         <section class="card"><h2 style="margin-top:0">ข้อความสำหรับแต่ละกลุ่ม</h2>
           ${items.map((it) => `<div class="item" style="margin-bottom:12px"><div class="head"><h3>${esc(groups.find((g) => g.id === it.group_id)?.name ?? it.group_id)}</h3>
@@ -88,6 +92,14 @@ export const routes = [
       cta: String(f.img_cta ?? '').trim(),
       packageId: String(f.img_packageId ?? 'all'),
       ...(f.img_visual !== undefined ? { visual: String(f.img_visual).trim().slice(0, 300) } : {}),
+      ...(f.img_features !== undefined ? {
+        features: lines(f.img_features).slice(0, 4).map((l) => {
+          const [icon = '', title = '', desc = ''] = l.split('|').map((s) => s.trim());
+          return { icon: icon.toLowerCase(), title, desc };
+        }),
+        slogan: String(f.img_slogan ?? '').trim(),
+        tags: String(f.img_tags ?? '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 3),
+      } : {}),
     };
     try {
       const r = await savePostEdits(Number(id), {

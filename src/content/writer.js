@@ -14,6 +14,10 @@ const ImageSchema = z.object({
   packageId: z.string(),
   source: z.string().default(''),
   visual: z.string().default(''),
+  // ช่องสำหรับเทมเพลต banner (เทมเพลตอื่นปล่อยว่าง)
+  features: z.array(z.object({ icon: z.string(), title: z.string(), desc: z.string() })).default([]),
+  slogan: z.string().default(''),
+  tags: z.array(z.string()).default([]),
 });
 
 export const SlotContentSchema = z.object({

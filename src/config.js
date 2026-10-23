@@ -5,7 +5,7 @@ import { CONFIG_DIR } from './env.js';
 import { writeAtomic } from './fsutil.js';
 
 const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-export const TEMPLATES = ['tip', 'news', 'showcase', 'package', 'fun', 'question'];
+export const TEMPLATES = ['tip', 'news', 'banner', 'showcase', 'package', 'fun', 'question'];
 
 const file = (name) => path.join(CONFIG_DIR, name);
 const read = (name) => YAML.parse(fs.readFileSync(file(name), 'utf8')) ?? {};

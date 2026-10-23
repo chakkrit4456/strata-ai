@@ -8,6 +8,8 @@ import { getTheme } from './themes.js';
 const TEMPLATE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'template.html');
 const EMOJI = /[\p{Extended_Pictographic}\u{FE0F}]/gu;
 const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
+// โพสต์ทั่วไปเป็นแนวตั้ง 4:5 · แบนเนอร์เป็นแนวนอน 16:9
+const SIZE = { default: { width: 1080, height: 1350 }, banner: { width: 1600, height: 900 } };
 
 let browser;
 
@@ -36,7 +38,7 @@ function dataUrl(file) {
  */
 export async function renderImage({ layout, image, brand, outFile, theme, bgPath = null }) {
   const b = await getBrowser();
-  const page = await b.newPage({ viewport: { width: 1080, height: 1350 }, deviceScaleFactor: 1 });
+  const page = await b.newPage({ viewport: SIZE[layout] ?? SIZE.default, deviceScaleFactor: 1 });
   try {
     await page.goto(`file://${TEMPLATE.replace(/\\/g, '/')}`, { waitUntil: 'load', timeout: 30000 }).catch(() => {});
     await page.evaluate((data) => window.renderPost(data), {
