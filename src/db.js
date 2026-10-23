@@ -138,3 +138,46 @@ export function expireBefore(date) {
 export function postsForDate(date) {
   return getDb().prepare("SELECT * FROM posts WHERE date = ? ORDER BY CASE slot WHEN 'morning' THEN 0 ELSE 1 END").all(date);
 }
+
+export function deletePost(id) {
+  getDb().prepare('DELETE FROM posts WHERE id = ?').run(id);
+}
+
+export function getItem(id) {
+  return getDb().prepare('SELECT * FROM group_items WHERE id = ?').get(id);
+}
+
+export function updateItemText(id, text) {
+  getDb().prepare('UPDATE group_items SET text = ? WHERE id = ?').run(text, id);
+}
+
+/** รายการโพสต์ย้อนหลัง พร้อมจำนวนกลุ่มที่โพสต์แล้ว/ทั้งหมด */
+export function listPosts({ status = '', pillar = '', limit = 30, offset = 0 } = {}) {
+  const where = [];
+  const args = [];
+  if (status) { where.push('p.status = ?'); args.push(status); }
+  if (pillar) { where.push('p.pillar = ?'); args.push(pillar); }
+  const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const total = getDb().prepare(`SELECT COUNT(*) AS n FROM posts p ${w}`).get(...args).n;
+  const rows = getDb().prepare(`
+    SELECT p.*,
+      (SELECT COUNT(*) FROM group_items gi WHERE gi.post_id = p.id) AS items_total,
+      (SELECT COUNT(*) FROM group_items gi WHERE gi.post_id = p.id AND gi.status = 'done') AS items_done
+    FROM posts p ${w}
+    ORDER BY p.date DESC, CASE p.slot WHEN 'evening' THEN 0 ELSE 1 END
+    LIMIT ? OFFSET ?`).all(...args, limit, offset);
+  return { total, rows };
+}
+
+/** สรุปต่อกลุ่ม: โพสต์แล้ว / ข้าม / หมดอายุ / ล่าสุดเมื่อไร */
+export function groupStats() {
+  return getDb().prepare(`
+    SELECT group_id,
+      SUM(status = 'done') AS done, SUM(status = 'skipped') AS skipped, SUM(status = 'expired') AS expired,
+      MAX(done_at) AS last_done
+    FROM group_items GROUP BY group_id`).all();
+}
+
+export function recentRuns(limit = 200) {
+  return getDb().prepare('SELECT * FROM runs ORDER BY id DESC LIMIT ?').all(limit);
+}

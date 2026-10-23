@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { env, mediaDir, ROOT } from './env.js';
-import { loadBrand, loadGroups, loadPillars } from './config.js';
+import { loadBrand, loadGroups, loadPillars, readPillars } from './config.js';
 import { planDay } from './content/planner.js';
+import { checkSlot } from './content/guard.js';
 import { writeSlot } from './content/writer.js';
 import { renderImage, closeRenderer } from './image/render.js';
 import { publishPhoto } from './publish/facebookPage.js';
@@ -143,4 +144,92 @@ pre{white-space:pre-wrap;background:#1b1d21;padding:14px;border-radius:6px;line-
 .row{display:flex;gap:12px}.row img{width:48%;border:1px solid #333}section{border-bottom:1px solid #333;padding-bottom:24px}</style>
 <h1>Dry run ${date}</h1>${blocks}`);
   console.log(`\nดูผลได้ที่ ${path.join(outRoot, 'index.html')}`);
+}
+
+// ---------- งานเบื้องหลังจาก Dashboard (รันได้ทีละงาน) ----------
+
+const job = { running: false, label: '', startedAt: null, finishedAt: null, error: null, summary: '' };
+export const jobState = () => ({ ...job });
+
+export function startJob(label, fn) {
+  if (job.running) throw new Error(`มีงาน "${job.label}" กำลังทำอยู่ รอให้เสร็จก่อน`);
+  Object.assign(job, { running: true, label, startedAt: new Date().toISOString(), finishedAt: null, error: null, summary: '' });
+  fn()
+    .then((summary) => { job.summary = summary ?? ''; })
+    .catch((e) => { job.error = e.message; console.error(`job "${label}":`, e); })
+    .finally(() => { job.running = false; job.finishedAt = new Date().toISOString(); });
+}
+
+const summarizeResults = (results) => results
+  .map((r) => `${SLOT_LABEL[r.slot]}: ${r.error ? `ล้มเหลว — ${r.error}` : r.skipped ? 'มีอยู่แล้ว' : `${r.record.topic} (${r.model})`}`)
+  .join(' · ');
+
+/** สร้างโพสต์ของวันที่ระบุ (เฉพาะรอบที่ยังไม่มี) */
+export function startGenerate(date) {
+  startJob(`สร้างโพสต์วันที่ ${date}`, async () => summarizeResults(await generateDay({ date })));
+}
+
+/** ทิ้งโพสต์รอบนี้ (ที่ยังไม่ลงเพจ) แล้วให้ AI สร้างใหม่ */
+export function startRegenerate(postId) {
+  const post = db.getPost(postId);
+  if (!post) throw new Error('ไม่พบโพสต์');
+  if (post.status === 'published') throw new Error('โพสต์นี้ลงเพจแล้ว สร้างใหม่ไม่ได้');
+  startJob(`สร้าง${SLOT_LABEL[post.slot]} ${post.date} ใหม่`, async () => {
+    db.deletePost(post.id);
+    return summarizeResults(await generateDay({ date: post.date }));
+  });
+}
+
+const templateFor = (pillarId) => {
+  try {
+    return readPillars().pillars.find((p) => p.id === pillarId)?.template ?? 'tip';
+  } catch {
+    return 'tip';
+  }
+};
+
+/** คำเตือนจากตัวตรวจเนื้อหา สำหรับแสดงในหน้าแก้ไขโพสต์ (ไม่บล็อกการบันทึก) */
+export function postWarnings(post, items) {
+  const content = {
+    topic: post.topic,
+    caption: post.caption,
+    image: JSON.parse(post.image_json || '{}'),
+    softImage: null,
+    variants: items.map((i) => ({ groupId: i.group_id, text: i.text })),
+  };
+  const slotPlan = { isPromo: Boolean(post.is_promo), groups: items.map((i) => ({ groupId: i.group_id, mode: i.mode })) };
+  return checkSlot(content, slotPlan, { brand: loadBrand() }).issues.filter((i) => !i.startsWith('ภาพแบบไม่ขาย'));
+}
+
+/**
+ * บันทึกการแก้ไขจาก Dashboard: แคปชัน ข้อความในภาพ (render ใหม่ถ้าเปลี่ยน) และข้อความของแต่ละกลุ่ม
+ * โพสต์ที่ลงเพจแล้วแก้ได้เฉพาะข้อความกลุ่ม
+ */
+export async function savePostEdits(postId, { caption, image, items = {} }) {
+  const post = db.getPost(postId);
+  if (!post) throw new Error('ไม่พบโพสต์');
+  const editable = post.status !== 'published';
+  const fields = {};
+  if (editable && typeof caption === 'string' && caption.trim() && caption.trim() !== post.caption) fields.caption = caption.trim();
+  let rerendered = false;
+  if (editable && image) {
+    const old = JSON.parse(post.image_json || '{}');
+    const next = { ...old, ...image };
+    if (JSON.stringify(next) !== JSON.stringify(old)) {
+      if (job.running) throw new Error('มีงานสร้างโพสต์กำลังทำอยู่ รอให้เสร็จก่อนค่อยทำภาพใหม่');
+      try {
+        await renderImage({ layout: templateFor(post.pillar), image: next, brand: loadBrand(), outFile: post.image_path });
+      } finally {
+        await closeRenderer();
+      }
+      fields.image_json = JSON.stringify(next);
+      rerendered = true;
+    }
+  }
+  if (Object.keys(fields).length) db.updatePost(post.id, fields);
+  for (const it of db.itemsForPost(post.id)) {
+    const t = items[it.id];
+    if (typeof t === 'string' && t.trim() && t.trim() !== it.text) db.updateItemText(it.id, t.trim());
+  }
+  return { rerendered };
 }

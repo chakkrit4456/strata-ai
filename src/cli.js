@@ -22,7 +22,7 @@ const HELP = `ใช้งาน:
   publish <morning|evening> [--date]      โพสต์ลงเพจตามรอบ (ใช้กับ timer)
   publish --test                          ทดสอบ token ด้วยการโพสต์ภาพตัวอย่างแบบไม่เผยแพร่
   serve                                   เปิด Dashboard
-  check                                   ตรวจการตั้งค่า
+  check [--test]                          ตรวจการตั้งค่า (--test = ส่งข้อความทดสอบเข้า Telegram)
   preview                                 เรนเดอร์ภาพตัวอย่างทุกเทมเพลตลง out/preview`;
 
 switch (cmd) {
@@ -54,39 +54,11 @@ switch (cmd) {
     break;
   }
   case 'check': {
-    const { loadBrand, loadGroups, loadPillars } = await import('./config.js');
-    const groups = loadGroups();
-    loadBrand();
-    loadPillars();
-    const rows = [
-      ['FB_PAGE_ID', Boolean(env.fbPageId)],
-      ['FB_PAGE_TOKEN', Boolean(env.fbPageToken)],
-      ['DASHBOARD_PASSWORD', Boolean(env.dashboardPassword) && env.dashboardPassword !== 'change-me'],
-      ['config/groups.yaml', fs.existsSync(path.join(ROOT, 'config', 'groups.yaml'))],
-      ['Telegram (ไม่บังคับ)', Boolean(env.telegramToken && env.telegramChatId)],
-    ];
-    for (const [k, ok] of rows) console.log(`${ok ? '✓' : '✗'} ${k}`);
-    console.log(`  กลุ่มที่เปิดใช้: ${groups.filter((g) => g.enabled).length} | โหมดอนุมัติ: ${env.requireApproval ? 'เปิด' : 'ปิด'} | AI: ${env.aiProviders.join(' → ')}`);
-    const { loadProviders } = await import('./ai/providers.js');
-    const providers = loadProviders();
-    if (!providers.length) console.log('✗ ยังไม่มีคีย์ AI สักเจ้า (GEMINI_API_KEY / GROQ_API_KEY / OPENROUTER_API_KEY)');
-    for (const p of providers) {
-      try {
-        const r = await p.generate({ system: 'ตอบสั้นที่สุด', messages: [{ role: 'user', content: 'ตอบคำว่า OK' }] });
-        console.log(`✓ ${p.name} (${r.model}) ใช้งานได้`);
-      } catch (e) {
-        console.log(`✗ ${e.message}`);
-      }
-    }
-    if (env.fbPageToken) {
-      const { checkToken } = await import('./publish/facebookPage.js');
-      try {
-        const t = await checkToken();
-        console.log(`${t.matchesPage ? '✓' : '✗'} token เป็นของ "${t.name}" (${t.id})${t.matchesPage ? '' : ' — ไม่ใช่ Page token ของ FB_PAGE_ID'}`);
-      } catch (e) {
-        console.log(`✗ ตรวจ token ไม่ผ่าน: ${e.message}`);
-      }
-    }
+    const { runHealth } = await import('./health.js');
+    console.log(`โหมดอนุมัติ: ${env.requireApproval ? 'เปิด' : 'ปิด'} | AI: ${env.aiProviders.join(' → ')}`);
+    const rows = await runHealth({ telegramTest: values.test });
+    for (const r of rows) console.log(`${r.ok === null ? '·' : r.ok ? '✓' : '✗'} ${r.name}${r.detail ? ` — ${r.detail}` : ''}`);
+    if (rows.some((r) => r.ok === false)) process.exitCode = 1;
     break;
   }
   case 'preview':

@@ -45,7 +45,8 @@ export function planDay({ date, pillarsCfg, groups, recent = [], lastModes = {} 
   const window = recent.slice(0, 14);
   const promoRatio = window.length ? window.filter((p) => p.is_promo).length / window.length : 0;
   const lastWasPromo = Boolean(recent[0]?.is_promo);
-  const wantPromo = (pillarsCfg.maxPromoPerDay ?? 1) > 0 && promoRatio < (pillarsCfg.promoRatio ?? 0.3) && !lastWasPromo;
+  const hasPromoPillar = pillarsCfg.pillars.some((p) => p.kind === 'promo');
+  const wantPromo = hasPromoPillar && (pillarsCfg.maxPromoPerDay ?? 1) > 0 && promoRatio < (pillarsCfg.promoRatio ?? 0.3) && !lastWasPromo;
   const promoSlot = wantPromo ? (rand() < 0.6 ? 'evening' : 'morning') : null;
 
   // ลดน้ำหนักหมวดที่เพิ่งใช้ไป เพื่อให้เนื้อหาหมุนเวียน
