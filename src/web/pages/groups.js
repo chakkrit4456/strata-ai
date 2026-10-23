@@ -1,5 +1,6 @@
 // หน้า "กลุ่ม": เพิ่ม/แก้/เปิดปิด/ลบกลุ่ม Facebook (บันทึกลง config/groups.yaml)
-import { loadGroups, saveGroups, groupsFileExists, WEEKDAYS } from '../../config.js';
+import { loadGroups, saveGroups, groupsFileExists, WEEKDAYS, parseGroupImport, canonicalGroupUrl, groupIdFromUrl } from '../../config.js';
+import { BOOKMARKLET } from '../bookmarklet.js';
 import * as db from '../../db.js';
 import { esc, badge, btn, layout, field, area, select, check, csrfInput } from '../ui.js';
 import { PROMO, DAY_LABEL, redirect } from './shared.js';
@@ -23,7 +24,7 @@ function listPage(ctx) {
   return {
     html: layout({
       title: 'กลุ่ม', active: 'groups', flash: ctx.flash,
-      body: `<div class="head"><h1 style="margin:0 auto 0 0">กลุ่ม Facebook</h1><a class="button primary" href="/groups/new">+ เพิ่มกลุ่ม</a></div>
+      body: `<div class="head"><h1 style="margin:0 auto 0 0">กลุ่ม Facebook</h1><a class="button primary" href="/groups/import">⬇ นำเข้ากลุ่มที่ฉันเป็นสมาชิก</a><a class="button" href="/groups/new">+ เพิ่มทีละกลุ่ม</a></div>
         ${groupsFileExists() ? '' : '<div class="flash info">ตอนนี้ยังใช้รายชื่อกลุ่มตัวอย่าง — แก้หรือเพิ่มกลุ่มครั้งแรกจะสร้างไฟล์ groups.yaml ของจริงให้</div>'}
         <div class="card scroll"><table class="table"><thead><tr><th>กลุ่ม</th><th>โปรโมท</th><th>ต่อวัน</th><th>โพสต์แล้ว</th><th>สถานะ</th><th></th></tr></thead>
         <tbody>${rows || '<tr><td colspan="6" class="empty">ยังไม่มีกลุ่ม</td></tr>'}</tbody></table></div>
@@ -78,7 +79,102 @@ const fromForm = (f) => ({
 
 const EMPTY = { id: '', name: '', url: '', audience: '', rules: '', promo: 'never', promoDays: [], maxPerDay: 1, signature: true, enabled: true };
 
+function importPage(ctx, { error, text = '' } = {}) {
+  return {
+    status: error ? 400 : 200,
+    html: layout({
+      title: 'นำเข้ากลุ่ม', active: 'groups', flash: error ? { err: error } : ctx.flash,
+      body: `<h1>นำเข้ากลุ่มที่คุณเป็นสมาชิก</h1>
+      <div class="flash info">Facebook ไม่อนุญาตให้โปรแกรมดึงรายชื่อกลุ่มของคุณโดยตรง จึงใช้ปุ่มช่วยเก็บรายชื่อจากหน้า "กลุ่มของคุณ" ในเบราว์เซอร์ของคุณเอง (ข้อมูลไม่ถูกส่งไปที่ไหน จนกว่าคุณจะวางในหน้านี้)</div>
+      <section class="card"><h2 style="margin-top:0">วิธีที่ 1: ปุ่มเก็บรายชื่อกลุ่ม (แนะนำ บนคอมพิวเตอร์)</h2>
+        <ol>
+          <li>ลากปุ่มนี้ไปวางที่แถบบุ๊กมาร์กของเบราว์เซอร์ (ทำครั้งเดียว) →
+            <a class="button primary" href="${esc(BOOKMARKLET)}" onclick="alert('ลากปุ่มนี้ไปวางที่แถบบุ๊กมาร์ก แล้วไปกดบนหน้ากลุ่มของคุณใน Facebook');return false">📋 เก็บรายชื่อกลุ่ม Strata</a></li>
+          <li>เปิด <a href="https://www.facebook.com/groups/joins/" target="_blank" rel="noopener">facebook.com/groups/joins</a> (หน้า "กลุ่มของคุณ")</li>
+          <li>กดบุ๊กมาร์ก "เก็บรายชื่อกลุ่ม Strata" → ระบบจะเลื่อนหน้าโหลดกลุ่มทั้งหมด แล้วกด <b>คัดลอก</b></li>
+          <li>กลับมาวางในช่องด้านล่าง แล้วกด "ตรวจรายการ"</li>
+        </ol></section>
+      <section class="card"><h2 style="margin-top:0">วิธีที่ 2: วางลิงก์เอง (ใช้บนมือถือได้)</h2>
+        <p class="muted">บรรทัดละกลุ่ม: <span class="mono">ชื่อกลุ่ม | https://www.facebook.com/groups/...</span> หรือวางแค่ลิงก์ก็ได้
+          (ในแอป Facebook: เข้ากลุ่ม → แชร์ → คัดลอกลิงก์)</p></section>
+      <form method="post" action="/groups/import" class="card">${csrfInput(ctx.csrf)}
+        ${area('วางรายชื่อกลุ่มที่นี่', 'text', text, { rows: 8, required: true })}
+        <div class="actions"><button class="primary">ตรวจรายการ</button><a class="button" href="/groups">กลับ</a></div></form>`,
+    }),
+  };
+}
+
+function confirmPage(ctx, found) {
+  const existing = new Map(loadGroups().map((g) => [canonicalGroupUrl(g.url), g]));
+  const rows = found.map((r, i) => {
+    const dup = groupsFileExists() ? existing.get(r.url) : null;
+    return `<tr class="${dup ? 'disabled' : ''}"><td><input type="checkbox" name="pick" value="${i}" class="grp"${dup ? ' disabled' : ' checked'}></td>
+      <td><input name="name_${i}" value="${esc(r.name)}"${dup ? ' disabled' : ''}><input type="hidden" name="url_${i}" value="${esc(r.url)}">
+        <div class="muted">${esc(r.url)}</div></td>
+      <td>${dup ? badge([`มีแล้ว: ${dup.name}`, 'mute']) : badge(['ใหม่', 'ok'])}</td></tr>`;
+  }).join('');
+  return {
+    html: layout({
+      title: 'ยืนยันนำเข้ากลุ่ม', active: 'groups', flash: ctx.flash,
+      body: `<h1>เจอ ${found.length} กลุ่ม</h1>
+      <form method="post" action="/groups/import/save">${csrfInput(ctx.csrf)}<input type="hidden" name="count" value="${found.length}">
+        <div class="card scroll">
+          <label class="check"><input type="checkbox" checked onchange="document.querySelectorAll('.grp:not(:disabled)').forEach(c=>c.checked=this.checked)"> เลือกทั้งหมด</label>
+          <table class="table"><thead><tr><th></th><th>ชื่อกลุ่ม (แก้ได้)</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+        <section class="card">
+          ${select('การโปรโมทของกลุ่มที่นำเข้า', 'promo', 'never', Object.entries(PROMO), { hint: 'แนะนำ "ห้ามขาย" ไว้ก่อน แล้วค่อยแก้ทีละกลุ่มตามกฎของกลุ่มนั้น' })}
+          ${select('จำนวนโพสต์ต่อวัน', 'maxPerDay', 1, [[1, '1 โพสต์'], [2, '2 โพสต์']])}
+          <p class="muted">กลุ่มที่นำเข้าจะเปิดใช้และเลือกได้ในหน้า "สร้างและโพสต์ทันที" ทันที อย่าลืมใส่กฎของแต่ละกลุ่มให้ AI ทำตาม</p>
+          <div class="actions"><button class="primary">นำเข้ากลุ่มที่เลือก</button><a class="button" href="/groups/import">กลับ</a></div></section>
+      </form>`,
+    }),
+  };
+}
+
+function saveImport(ctx) {
+  const f = ctx.form;
+  const picks = new Set([].concat(f.pick ?? []).map(Number));
+  // ยังใช้ไฟล์ตัวอย่างอยู่ = เริ่มรายชื่อใหม่ ไม่เอากลุ่มตัวอย่างมาด้วย
+  const groups = groupsFileExists() ? loadGroups() : [];
+  const urls = new Set(groups.map((g) => canonicalGroupUrl(g.url)));
+  const ids = new Set(groups.map((g) => g.id));
+  let added = 0;
+  for (let i = 0; i < Math.min(300, Number(f.count) || 0); i++) {
+    if (!picks.has(i)) continue;
+    const url = canonicalGroupUrl(f[`url_${i}`]);
+    if (!url || urls.has(url)) continue;
+    const id = groupIdFromUrl(url, ids);
+    ids.add(id);
+    urls.add(url);
+    groups.push({
+      id, url, name: String(f[`name_${i}`] ?? '').trim() || id,
+      promo: f.promo, promoDays: f.promo === 'days' ? ['sat'] : [], maxPerDay: Number(f.maxPerDay), signature: true, enabled: true,
+    });
+    added += 1;
+  }
+  if (!added) return redirect('/groups/import', { err: 'ไม่ได้เลือกกลุ่มใหม่' });
+  try {
+    saveGroups(groups);
+  } catch (e) {
+    return redirect('/groups/import', { err: e.message });
+  }
+  return redirect('/groups', { ok: `นำเข้าแล้ว ${added} กลุ่ม — กด "แก้ไข" เพื่อใส่กฎของแต่ละกลุ่ม` });
+}
+
 export const routes = [
+  // /groups/import ต้องมาก่อน /groups/:id เพราะ "import" ตรงรูปแบบ id ได้
+  ['GET', /^\/groups\/import$/, (ctx) => importPage(ctx)],
+  ['POST', /^\/groups\/import$/, (ctx) => {
+    let found;
+    try {
+      found = parseGroupImport(ctx.form.text);
+    } catch (e) {
+      return importPage(ctx, { error: e.message, text: ctx.form.text });
+    }
+    if (!found.length) return importPage(ctx, { error: 'ไม่เจอลิงก์กลุ่ม Facebook ในข้อความที่วาง (ต้องเป็น facebook.com/groups/...)', text: ctx.form.text });
+    return confirmPage(ctx, found.slice(0, 300));
+  }],
+  ['POST', /^\/groups\/import\/save$/, saveImport],
   ['GET', /^\/groups$/, listPage],
   ['GET', /^\/groups\/new$/, (ctx) => formPage(ctx, EMPTY, { isNew: true })],
   ['GET', /^\/groups\/([a-z0-9-]+)$/, (ctx, [, id]) => {

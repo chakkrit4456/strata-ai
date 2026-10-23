@@ -194,3 +194,56 @@ export function groupProblem(g) {
 }
 
 export const isRealGroup = (g) => groupProblem(g) === '';
+
+// ---------- นำเข้ากลุ่ม ----------
+
+const GROUP_URL = /(?:https?:\/\/)?(?:www\.|m\.|web\.)?facebook\.com\/groups\/([A-Za-z0-9._-]+)/;
+
+/** ลิงก์กลุ่มรูปแบบเดียวกันทั้งระบบ: https://www.facebook.com/groups/<slug>/ */
+export function canonicalGroupUrl(url) {
+  const m = GROUP_URL.exec(String(url ?? ''));
+  if (!m || ['joins', 'feed', 'discover', 'create', 'search', 'notifications'].includes(m[1].toLowerCase())) return '';
+  return `https://www.facebook.com/groups/${m[1]}/`;
+}
+
+/**
+ * แปลงข้อความที่ผู้ใช้วางเป็นรายการกลุ่ม รับได้ 3 แบบ:
+ *  - JSON จากปุ่มเก็บรายชื่อกลุ่ม: [{ "name": "...", "url": "..." }]
+ *  - บรรทัดละกลุ่ม: "ชื่อกลุ่ม | ลิงก์" หรือ "ลิงก์" อย่างเดียว
+ * @returns {{ name: string, url: string }[]} ไม่ซ้ำกัน
+ */
+export function parseGroupImport(text) {
+  const s = String(text ?? '').trim();
+  let rows = [];
+  if (s.startsWith('[')) {
+    try {
+      rows = JSON.parse(s).map((r) => ({ name: String(r?.name ?? ''), url: String(r?.url ?? '') }));
+    } catch {
+      throw new Error('ข้อมูล JSON ไม่ถูกต้อง — ลองกดปุ่มเก็บรายชื่อกลุ่มใหม่อีกครั้ง');
+    }
+  } else {
+    rows = s.split(/\r?\n/).map((line) => {
+      const m = GROUP_URL.exec(line);
+      const name = m ? line.slice(0, m.index).replace(/[|,\t-]+\s*$/, '').trim() : '';
+      return { name, url: m ? m[0] : '' };
+    });
+  }
+  const seen = new Set();
+  const out = [];
+  for (const r of rows) {
+    const url = canonicalGroupUrl(r.url);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const slug = url.split('/groups/')[1].replace(/\/$/, '');
+    out.push({ name: r.name.replace(/\s+/g, ' ').trim().slice(0, 200) || `กลุ่ม ${slug}`, url });
+  }
+  return out;
+}
+
+/** id ภาษาอังกฤษจากลิงก์กลุ่ม (ไม่ซ้ำกับที่มีอยู่) */
+export function groupIdFromUrl(url, taken) {
+  const slug = url.split('/groups/')[1].replace(/\/$/, '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'group';
+  let id = /^\d+$/.test(slug) ? `g-${slug}` : slug;
+  for (let i = 2; taken.has(id); i++) id = `${slug}-${i}`;
+  return id;
+}

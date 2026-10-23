@@ -179,3 +179,41 @@ test('ลบร่างได้ แต่ลบโพสต์ที่ลง�
   assert.match(decodeURIComponent(r.location), /ลงเพจแล้ว/);
   assert.ok(db.getPost(live));
 });
+
+test('parseGroupImport รับทั้ง JSON จากปุ่มเก็บกลุ่ม และบรรทัด "ชื่อ | ลิงก์"', () => {
+  const fromJson = config.parseGroupImport(JSON.stringify([
+    { name: 'Web Dev TH', url: 'https://www.facebook.com/groups/webdevth/?ref=share' },
+    { name: 'ซ้ำ', url: 'https://m.facebook.com/groups/webdevth' },
+    { name: 'joins page', url: 'https://www.facebook.com/groups/joins/' },
+  ]));
+  assert.deepEqual(fromJson, [{ name: 'Web Dev TH', url: 'https://www.facebook.com/groups/webdevth/' }]);
+  const fromLines = config.parseGroupImport('ฟรีแลนซ์ IT | https://www.facebook.com/groups/123456\nhttps://web.facebook.com/groups/abc.def\nไม่ใช่ลิงก์');
+  assert.deepEqual(fromLines.map((g) => g.url), ['https://www.facebook.com/groups/123456/', 'https://www.facebook.com/groups/abc.def/']);
+  assert.equal(fromLines[0].name, 'ฟรีแลนซ์ IT');
+  assert.throws(() => config.parseGroupImport('[oops'), /JSON/);
+  assert.equal(config.groupIdFromUrl('https://www.facebook.com/groups/123456/', new Set()), 'g-123456');
+  assert.equal(config.groupIdFromUrl('https://www.facebook.com/groups/abc.def/', new Set(['abc-def'])), 'abc-def-2');
+});
+
+test('นำเข้ากลุ่มผ่านหน้าเว็บ แล้วกลุ่มขึ้นเป็นตัวเลือกในหน้า "สร้างและโพสต์ทันที"', async () => {
+  const csrf = csrfOf((await req('/groups/import')).text);
+  const confirm = await req('/groups/import', { method: 'POST', form: { _csrf: csrf, text: 'กลุ่มนำเข้า | https://www.facebook.com/groups/777888999' } });
+  assert.equal(confirm.status, 200);
+  assert.match(confirm.text, /777888999/);
+  const r = await req('/groups/import/save', {
+    method: 'POST',
+    form: { _csrf: csrf, count: '1', pick: '0', name_0: 'กลุ่มนำเข้า', url_0: 'https://www.facebook.com/groups/777888999/', promo: 'never', maxPerDay: '1' },
+  });
+  assert.equal(r.status, 303);
+  const g = config.loadGroups().find((x) => x.id === 'g-777888999');
+  assert.equal(g.name, 'กลุ่มนำเข้า');
+  assert.ok(config.isRealGroup(g));
+  const now = await req('/now');
+  assert.match(now.text, /value="g-777888999"(?![^>]*disabled)/);
+});
+
+test('bookmarklet เป็น JavaScript ที่ถูกต้อง', async () => {
+  const { BOOKMARKLET } = await import('../src/web/bookmarklet.js');
+  assert.ok(BOOKMARKLET.startsWith('javascript:'));
+  assert.doesNotThrow(() => new Function(decodeURIComponent(BOOKMARKLET.slice('javascript:'.length))));
+});
