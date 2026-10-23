@@ -88,6 +88,17 @@
   .opt { display: flex; align-items: center; gap: 24px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 12px; padding: 22px 26px; font-size: 32px; }
   .opt b { font-family: var(--mono); width: 54px; height: 54px; flex: none; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); border-radius: 8px; font-size: 28px; }
 
+  /* ---------- เกล็ดความรู้ (รู้หรือไม่?) ---------- */
+  .fact-top { display: flex; align-items: center; gap: 26px; }
+  .align-center .fact-top { justify-content: center; }
+  .fact-q { width: 150px; height: 150px; flex: none; border-radius: 50%; background: var(--accent); color: var(--on-accent);
+    display: grid; place-items: center; font-size: 110px; font-weight: 700; line-height: 1; }
+  .fact-label { font-size: 44px; font-weight: 700; line-height: 1.2; }
+  .fact-label small { display: block; font-family: var(--mono); font-size: 20px; font-weight: 400; letter-spacing: .2em; color: var(--muted); margin-top: 6px; }
+  .fact-box { background: var(--panel); border: 1.5px solid var(--line); border-left: 8px solid var(--accent); border-radius: 12px; padding: 26px 30px; display: grid; gap: 16px; text-align: left; }
+  .fact-box div { display: flex; gap: 18px; font-size: 29px; line-height: 1.45; }
+  .fact-box b { font-family: var(--mono); color: var(--accent); flex: none; }
+
   /* ---------- แบนเนอร์แนวนอน (1600x900) ---------- */
   .canvas.banner { padding: 0; }
   .bn-photo { position: absolute; top: 0; right: 0; width: 64%; height: calc(100% - 96px); background-size: cover; background-position: center;
@@ -145,6 +156,12 @@
 
   const LAYOUTS = {
     tip: (img) => `${pic}<h1>${headline(img.headline)}</h1>${sub(img)}${bullets(img.bullets)}
+      ${img.code ? `<div class="term"><div class="bar"><i></i><i></i><i></i></div><pre>${esc(img.code)}</pre></div>` : ''}`,
+
+    fact: (img) => `${pic}<div class="fact-top"><div class="fact-q">?</div>
+        <div class="fact-label">รู้หรือไม่?<small>${esc(img.kicker || 'TECH FACT')}</small></div></div>
+      <h1>${headline(img.headline)}</h1>${sub(img)}
+      ${img.bullets?.length ? `<div class="fact-box">${img.bullets.map((b, i) => `<div><b>0${i + 1}</b><span>${esc(b)}</span></div>`).join('')}</div>` : ''}
       ${img.code ? `<div class="term"><div class="bar"><i></i><i></i><i></i></div><pre>${esc(img.code)}</pre></div>` : ''}`,
 
     news: (img) => `${pic}${img.source ? `<div class="source">ที่มา: ${esc(img.source)}</div>` : ''}

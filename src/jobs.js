@@ -16,15 +16,26 @@ import * as db from './db.js';
 
 const SOFT_LAYOUT = 'tip';
 
-/** ข่าวที่ส่งให้ AI เลือก: ล่าสุดที่ยังไม่เคยใช้ (ถ้าเลือกข่าวเฉพาะมา จะส่งแค่ข่าวนั้น) */
-function newsFor({ newsUrl = '' } = {}) {
+// หมวดที่ไม่ต้องใช้ข่าว: ส่งข่าวไปก็ทำให้ prompt ยาวและเนื้อหาออกนอกเรื่อง
+const NO_NEWS_TEMPLATES = new Set(['fact', 'banner', 'package']);
+
+/**
+ * ข่าวที่ส่งให้ AI เลือก: ล่าสุดที่ยังไม่เคยใช้ (ถ้าเลือกข่าวเฉพาะมา จะส่งแค่ข่าวนั้น)
+ * หมวด "อัปเดตข่าวเทค/เครื่องมือใหม่" ใช้เฉพาะแหล่งข่าวสายเทค (ถ้ามีไม่พอ ใช้ข่าวทั้งหมด)
+ */
+function newsFor({ newsUrl = '', pillar = null } = {}) {
   if (newsUrl === 'none' || !env.useNews) return [];
   if (newsUrl) {
     const n = db.getNewsByUrl(newsUrl);
     if (!n) throw new Error('ไม่พบข่าวที่เลือก (อาจถูกลบไปแล้ว ลองดึงข่าวใหม่)');
     return [n];
   }
+  if (pillar && NO_NEWS_TEMPLATES.has(pillar.template)) return [];
   // ข่าวน้อยลง = prompt สั้นลง ไม่ชนโควตา token ต่อนาทีของ AI ฟรี
+  if (pillar?.id === 'technews') {
+    const tech = db.freshNews({ days: 3, limit: 10, focus: 'tech' });
+    if (tech.length >= 3) return tech;
+  }
   return db.freshNews({ days: 3, limit: 8 });
 }
 
@@ -123,7 +134,7 @@ export async function generateDay({ date, dry = false }) {
       try {
         // ธีม/น้ำเสียงไม่ซ้ำโพสต์ล่าสุด (รวมรอบเช้าที่เพิ่งสร้างในวันเดียวกัน)
         const style = resolveStyle({}, [...results.filter((r) => r.record).map((r) => r.record).reverse(), ...recent]);
-        const news = newsFor().filter((n) => !usedNews.has(n.url));
+        const news = newsFor({ pillar: slotPlan.pillar }).filter((n) => !usedNews.has(n.url));
         const { content, attempts, provider, model, record, items, overflow } = await buildSlot({
           date, slotPlan, groups, brand, history, outRoot, style, news, aiImage: !dry || env.aiImageProviders.length > 0,
           status: env.requireApproval ? 'pending_approval' : 'approved',
@@ -364,7 +375,8 @@ export function startCreateNow(opts) {
  *   theme: '' = อัตโนมัติ, 'brand' = ธีมเพจ, 'random' = สุ่ม, หรือ id · newsUrl: '' = ให้ AI เลือก, 'none' = ไม่ใช้ข่าว, หรือลิงก์ข่าว
  */
 function createNowTask({ pillarId = '', topicHint = '', groupIds = [], preview = true, theme = '', tone = '', aiImage = true, newsUrl = '' }) {
-  const news = newsFor({ newsUrl });
+  // ข่าวที่เลือกเองตรวจตั้งแต่ตอนกด (แจ้ง error ทันที) ส่วนแบบอัตโนมัติเลือกตามหมวดหลังวางแผน
+  const pickedNews = newsUrl ? newsFor({ newsUrl }) : null;
   const all = loadGroups();
   const chosen = [...new Set(groupIds)].map((id) => {
     const g = all.find((x) => x.id === id);
@@ -385,7 +397,8 @@ function createNowTask({ pillarId = '', topicHint = '', groupIds = [], preview =
     let built;
     try {
       built = await buildSlot({
-        date, slotPlan, groups: chosen, brand, history, topicHint: hint, onStep: step, style, news, aiImage,
+        date, slotPlan, groups: chosen, brand, history, topicHint: hint, onStep: step, style, aiImage,
+        news: pickedNews ?? newsFor({ pillar: slotPlan.pillar }),
         outRoot: path.join(mediaDir(), date), status: preview ? 'pending_approval' : 'approved',
       });
     } finally {

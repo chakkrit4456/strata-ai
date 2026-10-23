@@ -6,37 +6,81 @@ feeds:
     name: Blognone
     url: https://www.blognone.com/atom.xml
     lang: th
+    focus: tech
     enabled: true
   - id: thestandard-tech
     name: THE STANDARD Tech
     url: https://thestandard.co/category/news/tech/feed/
     lang: th
+    focus: general
     enabled: true
   - id: techsauce
     name: Techsauce
     url: https://techsauce.co/feed
     lang: th
+    focus: general
     enabled: true
   - id: beartai
     name: beartai
     url: https://www.beartai.com/feed
     lang: th
+    focus: tech
     enabled: true
   - id: theverge
     name: The Verge
     url: https://www.theverge.com/rss/index.xml
     lang: en
+    focus: tech
     enabled: true
   - id: techcrunch
     name: TechCrunch
     url: https://techcrunch.com/feed/
     lang: en
+    focus: tech
     enabled: true
   - id: hackernews
     name: Hacker News
     url: https://news.ycombinator.com/rss
     lang: en
+    focus: tech
     enabled: false
+  # แหล่งข่าวเครื่องมือ/อัปเดตใหม่ (focus: tech = ใช้กับหมวด "อัปเดตข่าวเทค/เครื่องมือใหม่")
+  - id: github
+    name: GitHub Blog
+    url: https://github.blog/feed/
+    lang: en
+    focus: tech
+    enabled: true
+  - id: producthunt
+    name: Product Hunt
+    url: https://www.producthunt.com/feed
+    lang: en
+    focus: tech
+    enabled: true
+  - id: googledev
+    name: Google Developers
+    url: https://developers.googleblog.com/feeds/posts/default
+    lang: en
+    focus: tech
+    enabled: true
+  - id: openai
+    name: OpenAI News
+    url: https://openai.com/news/rss.xml
+    lang: en
+    focus: tech
+    enabled: true
+  - id: devto
+    name: DEV Community
+    url: https://dev.to/feed
+    lang: en
+    focus: tech
+    enabled: true
+  - id: infoq
+    name: InfoQ
+    url: https://feed.infoq.com/
+    lang: en
+    focus: tech
+    enabled: true
 # ค้นข่าวล่าสุดจาก Google News ตามคำค้น (ภาษาไทย)
 googleNews:
   - AI ธุรกิจ
@@ -44,3 +88,5 @@ googleNews:
   - ระบบอัตโนมัติ
   - ขายของออนไลน์
   - ความปลอดภัยไซเบอร์
+  - เครื่องมือ AI ใหม่
+  - อัปเดตฟีเจอร์ใหม่

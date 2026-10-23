@@ -64,6 +64,8 @@ function migrate(d) {
   for (const c of ['model', 'theme', 'tone', 'news_url', 'bg_path']) {
     if (!cols.has(c)) d.exec(`ALTER TABLE posts ADD COLUMN ${c} TEXT`);
   }
+  const newsCols = new Set(d.prepare('PRAGMA table_info(news)').all().map((c) => c.name));
+  if (!newsCols.has('focus')) d.exec("ALTER TABLE news ADD COLUMN focus TEXT NOT NULL DEFAULT 'general'");
 }
 
 export function getDb() {
@@ -214,18 +216,25 @@ export function draftPosts(limit = 50) {
 // ---------- ข่าว ----------
 
 export function upsertNews(items) {
-  const ins = getDb().prepare(`INSERT INTO news (url, title, source, lang, published_at, summary, fetched_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(url) DO NOTHING`);
+  const ins = getDb().prepare(`INSERT INTO news (url, title, source, lang, focus, published_at, summary, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(url) DO NOTHING`);
   let added = 0;
-  for (const n of items) added += ins.run(n.url, n.title, n.source, n.lang, n.publishedAt || null, n.summary || '', nowIso()).changes;
+  for (const n of items) {
+    added += ins.run(n.url, n.title, n.source, n.lang, n.focus === 'tech' ? 'tech' : 'general', n.publishedAt || null, n.summary || '', nowIso()).changes;
+  }
   return added;
 }
 
-/** ข่าวล่าสุดที่ยังไม่เคยใช้ทำโพสต์ */
-export function freshNews({ days = 3, limit = 30, includeUsed = false } = {}) {
+/**
+ * ข่าวล่าสุดที่ยังไม่เคยใช้ทำโพสต์
+ * @param {{ days?: number, limit?: number, includeUsed?: boolean, focus?: 'tech'|'general'|'' }} o
+ *   focus=tech = เฉพาะแหล่งข่าวสายเทค/เครื่องมือใหม่
+ */
+export function freshNews({ days = 3, limit = 30, includeUsed = false, focus = '' } = {}) {
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
   return getDb().prepare(`SELECT * FROM news WHERE COALESCE(published_at, fetched_at) >= ?
-    ${includeUsed ? '' : 'AND used_post_id IS NULL'} ORDER BY COALESCE(published_at, fetched_at) DESC LIMIT ?`).all(since, limit);
+    ${includeUsed ? '' : 'AND used_post_id IS NULL'} ${focus ? 'AND focus = ?' : ''}
+    ORDER BY COALESCE(published_at, fetched_at) DESC LIMIT ?`).all(since, ...(focus ? [focus] : []), limit);
 }
 
 export function getNewsByUrl(url) {

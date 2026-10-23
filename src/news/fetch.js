@@ -15,7 +15,7 @@ async function get(url) {
 export async function fetchAllNews() {
   const cfg = loadNews();
   const jobs = [
-    ...cfg.feeds.filter((f) => f.enabled).map((f) => ({ source: f.name, lang: f.lang, url: f.url })),
+    ...cfg.feeds.filter((f) => f.enabled).map((f) => ({ source: f.name, lang: f.lang, focus: f.focus, url: f.url })),
     ...cfg.googleNews.map((q) => ({ source: `Google News: ${q}`, lang: 'th', url: googleNewsUrl(q), limit: 8 })),
   ];
   const maxAge = Date.now() - cfg.maxAgeDays * 86_400_000;
@@ -30,6 +30,7 @@ export async function fetchAllNews() {
           source: j.source.startsWith('Google News') ? (n.title.match(/ - ([^-]+)$/)?.[1]?.trim() ?? 'Google News') : j.source,
           title: j.source.startsWith('Google News') ? n.title.replace(/ - [^-]+$/, '') : n.title,
           lang: j.lang,
+          focus: j.focus ?? 'general',
         }));
       return { source: j.source, ok: true, found: items.length, added: db.upsertNews(items) };
     } catch (e) {
