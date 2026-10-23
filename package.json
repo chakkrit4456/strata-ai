@@ -1,0 +1,25 @@
+{
+  "name": "strata-automation",
+  "version": "0.1.0",
+  "description": "ระบบคิดคอนเทนต์ ทำภาพ และโพสต์อัตโนมัติของเพจ Strata",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "generate": "node --disable-warning=ExperimentalWarning src/cli.js generate",
+    "publish:slot": "node --disable-warning=ExperimentalWarning src/cli.js publish",
+    "serve": "node --disable-warning=ExperimentalWarning src/cli.js serve",
+    "check": "node --disable-warning=ExperimentalWarning src/cli.js check",
+    "preview": "node --disable-warning=ExperimentalWarning src/cli.js preview",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "@google/genai": "^2.31.0",
+    "playwright": "^1.64.1",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  }
+}

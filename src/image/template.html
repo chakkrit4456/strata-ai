@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=block" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f12;
+    --panel: #15181d;
+    --line: #262a31;
+    --mint: #5fe3b3;
+    --cream: #f2ece1;
+    --muted: #8d939c;
+    --gold: #c9a35c;
+    --sans: 'IBM Plex Sans Thai', 'Noto Sans Thai', 'Tlwg Typist', sans-serif;
+    --mono: 'JetBrains Mono', 'DejaVu Sans Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1350px; background: var(--bg); }
+  body { font-family: var(--sans); color: var(--cream); overflow: hidden; }
+  .canvas { position: relative; width: 1080px; height: 1350px; padding: 84px 84px 72px; display: flex; flex-direction: column; }
+
+  /* พื้นหลัง: เส้นกริดจางๆ + เส้นมุมแบบหน้าปก */
+  .bg { position: absolute; inset: 0; pointer-events: none; }
+  .bg .grid { position: absolute; inset: 0; opacity: .35;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 54px 54px; mask-image: radial-gradient(ellipse at 80% 20%, #000 0%, transparent 70%); }
+  .bg .photo { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: .22; }
+  .bg .frame { opacity: .6; position: absolute; right: -60px; top: 120px; width: 420px; height: 620px; border: 2px solid #2b2f36; border-right: 0; }
+  .bg .frame::after { content: ''; position: absolute; left: 60px; top: 60px; width: 420px; height: 500px; border: 2px solid #22262c; border-right: 0; }
+  .bg .dot { position: absolute; right: 84px; bottom: 180px; width: 34px; height: 34px; background: var(--gold); opacity: .55; }
+
+  header { position: relative; display: flex; align-items: center; gap: 18px; }
+  .logo { width: 64px; height: 64px; }
+  .brand { font-family: var(--mono); font-weight: 600; letter-spacing: .32em; font-size: 22px; color: var(--cream); }
+  .kicker { margin-left: auto; font-family: var(--mono); font-size: 20px; letter-spacing: .2em; padding: 10px 18px; border: 1.5px solid var(--mint); color: var(--mint); }
+
+  main { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 40px 0; overflow: hidden; }
+  main .inner { display: flex; flex-direction: column; gap: 36px; }
+  h1 { font-weight: 700; font-size: 70px; line-height: 1.28; letter-spacing: -.005em; }
+  h1 .accent { color: var(--mint); }
+  .sub { font-size: 34px; line-height: 1.55; color: #c9c4ba; font-weight: 500; }
+
+  ul.bullets { list-style: none; display: flex; flex-direction: column; gap: 20px; }
+  ul.bullets li { position: relative; padding-left: 56px; font-size: 32px; line-height: 1.5; }
+  ul.bullets li::before { content: ''; position: absolute; left: 0; top: 13px; width: 30px; height: 18px;
+    background: var(--mint); transform: skewX(-24deg); }
+
+  .term { background: #0a0c0f; border: 1.5px solid var(--line); }
+  .term .bar { display: flex; gap: 10px; padding: 16px 20px; border-bottom: 1.5px solid var(--line); }
+  .term .bar i { width: 14px; height: 14px; border-radius: 50%; background: #2e333b; }
+  .term pre { font-family: var(--mono); font-size: 26px; line-height: 1.6; padding: 24px 28px; color: var(--mint); white-space: pre-wrap; word-break: break-word; }
+
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .card { background: var(--panel); border: 1.5px solid var(--line); padding: 26px 28px; font-size: 28px; line-height: 1.45; }
+  .card b { display: block; font-family: var(--mono); color: var(--mint); font-size: 20px; letter-spacing: .15em; margin-bottom: 10px; }
+
+  .pkgs { display: grid; gap: 18px; }
+  .pkg { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 24px; background: var(--panel); border: 1.5px solid var(--line); padding: 26px 30px; }
+  .pkg.hl { border-color: var(--mint); }
+  .pkg .n { font-size: 32px; font-weight: 600; }
+  .pkg .p { font-family: var(--mono); font-size: 40px; font-weight: 600; color: var(--mint); text-align: right; }
+  .pkg .s { grid-column: 1 / -1; font-size: 24px; color: var(--muted); line-height: 1.5; }
+  .pkg.big { padding: 38px 40px; }
+  .pkg.big .p { font-size: 64px; }
+  .pkg.big ul.bullets li { font-size: 28px; }
+
+  .fun { border-left: 6px solid var(--mint); padding-left: 40px; }
+  .fun .prompt { font-family: var(--mono); color: var(--muted); font-size: 26px; margin-bottom: 18px; }
+  .fun h1 { font-size: 80px; }
+  .fun .punch { margin-top: 40px; font-size: 56px; line-height: 1.4; color: var(--mint); font-weight: 600; }
+
+  .opts { display: grid; gap: 18px; }
+  .opt { display: flex; align-items: center; gap: 24px; background: var(--panel); border: 1.5px solid var(--line); padding: 22px 26px; font-size: 32px; }
+  .opt b { font-family: var(--mono); width: 54px; height: 54px; flex: none; display: grid; place-items: center; background: var(--mint); color: var(--bg); font-size: 28px; }
+
+  footer { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-top: 28px; border-top: 1.5px solid var(--line); }
+  footer .cta { font-size: 30px; font-weight: 600; color: var(--cream); }
+  footer .tag { font-family: var(--mono); font-size: 20px; color: var(--muted); letter-spacing: .12em; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="canvas" id="root"></div>
+<script>
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const baht = (n) => '฿' + Number(n).toLocaleString('en-US');
+  const LOGO = `<svg class="logo" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill="#14161a"/>
+    <polygon points="22,15 50,15 46,25 18,25" fill="#f2ece1"/>
+    <polygon points="17,28 45,28 41,37 13,37" fill="#5fe3b3"/>
+    <polygon points="20,40 48,40 44,49 16,49" fill="#f2ece1"/></svg>`;
+
+  // เน้นคำสุดท้ายหลังเครื่องหมาย | ให้เป็นสีมิ้นต์ เช่น "ทำเว็บให้ร้าน|ขายได้จริง"
+  const headline = (h) => {
+    const [a, b] = String(h).split('|');
+    return b ? `${esc(a)}<span class="accent">${esc(b)}</span>` : esc(a);
+  };
+  const bullets = (list) => list?.length ? `<ul class="bullets">${list.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>` : '';
+
+  const LAYOUTS = {
+    tip: (img) => `
+      <h1>${headline(img.headline)}</h1>
+      ${img.subhead ? `<p class="sub">${esc(img.subhead)}</p>` : ''}
+      ${bullets(img.bullets)}
+      ${img.code ? `<div class="term"><div class="bar"><i></i><i></i><i></i></div><pre>${esc(img.code)}</pre></div>` : ''}`,
+
+    showcase: (img) => `
+      <h1>${headline(img.headline)}</h1>
+      ${img.subhead ? `<p class="sub">${esc(img.subhead)}</p>` : ''}
+      ${img.bullets?.length ? `<div class="cards">${img.bullets.map((b, i) => `<div class="card"><b>0${i + 1}</b>${esc(b)}</div>`).join('')}</div>` : ''}`,
+
+    package: (img, brand) => {
+      const pk = brand.packages;
+      if (img.packageId && img.packageId !== 'all') {
+        const p = pk.find((x) => x.id === img.packageId) ?? pk[0];
+        return `
+          <h1>${headline(img.headline)}</h1>
+          ${img.subhead ? `<p class="sub">${esc(img.subhead)}</p>` : ''}
+          <div class="pkg big hl"><div class="n">${esc(p.name)}</div><div class="p">${baht(p.price)}</div>
+            <div class="s">${esc(p.scope)} · ${esc(p.duration)} · ดูแลหลังส่งมอบ ${esc(p.support)}</div>
+            <div style="grid-column:1/-1;margin-top:14px">${bullets(p.features.slice(0, 4))}</div></div>`;
+      }
+      return `
+        <h1>${headline(img.headline)}</h1>
+        ${img.subhead ? `<p class="sub">${esc(img.subhead)}</p>` : ''}
+        <div class="pkgs">${pk.map((p, i) => `<div class="pkg${i === 1 ? ' hl' : ''}"><div class="n">${esc(p.name)}</div>
+          <div class="p">${p.priceNote ? '<span style="font-size:22px;color:var(--muted)">เริ่ม </span>' : ''}${baht(p.price)}</div>
+          <div class="s">${esc(p.scope)} · ${esc(p.duration)}</div></div>`).join('')}</div>`;
+    },
+
+    fun: (img) => `
+      <div class="fun">
+        <div class="prompt">$ cat real_life.log</div>
+        <h1>${headline(img.headline)}</h1>
+        ${img.subhead ? `<div class="punch">${esc(img.subhead)}</div>` : ''}
+      </div>`,
+
+    question: (img) => `
+      <h1>${headline(img.headline)}</h1>
+      ${img.subhead ? `<p class="sub">${esc(img.subhead)}</p>` : ''}
+      ${img.options?.length ? `<div class="opts">${img.options.map((o, i) => `<div class="opt"><b>${'ABCD'[i]}</b>${esc(o)}</div>`).join('')}</div>` : ''}`,
+  };
+
+  window.renderPost = ({ layout, image, brand, bg }) => {
+    const body = (LAYOUTS[layout] ?? LAYOUTS.tip)(image, brand);
+    document.getElementById('root').innerHTML = `
+      <div class="bg">${bg ? `<div class="photo" style="background-image:url('${bg}')"></div>` : ''}
+        <div class="grid"></div><div class="frame"></div><div class="dot"></div></div>
+      <header>${LOGO}<span class="brand">STRATA</span>${image.kicker ? `<span class="kicker">${esc(image.kicker)}</span>` : ''}</header>
+      <main><div class="inner">${body}</div></main>
+      <footer><span class="cta">${esc(image.cta || 'Strata — เว็บไซต์ ระบบ Bot & Automation')}</span><span class="tag">&gt; BUILD ANYTHING_</span></footer>`;
+    return document.fonts.ready;
+  };
+
+  // ย่อ headline/ข้อความถ้าล้นกรอบ
+  window.fitContent = () => {
+    const main = document.querySelector('main');
+    const inner = main.querySelector('.inner');
+    const avail = main.clientHeight - 80;
+    let scale = 1;
+    while (inner.getBoundingClientRect().height > avail && scale > 0.6) {
+      scale -= 0.05;
+      inner.style.zoom = scale;
+    }
+    return { overflow: inner.getBoundingClientRect().height > avail, scale };
+  };
+</script>
+</body>
+</html>

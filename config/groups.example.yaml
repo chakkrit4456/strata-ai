@@ -1,0 +1,45 @@
+# รายชื่อกลุ่ม Facebook ที่จะเตรียมโพสต์ให้ (คัดลอกเป็น groups.yaml แล้วแก้)
+# ใส่เฉพาะกลุ่มที่คุณเป็นสมาชิกอยู่แล้ว และอ่านกฎของกลุ่มก่อนเสมอ
+#
+# id         : ชื่อย่อภาษาอังกฤษ (ห้ามซ้ำ)
+# name       : ชื่อกลุ่ม
+# url        : ลิงก์กลุ่ม
+# audience   : สมาชิกส่วนใหญ่เป็นใคร (AI ใช้ปรับโทน)
+# rules      : กฎกลุ่มที่เกี่ยวกับการโพสต์ (AI ต้องทำตาม)
+# promo      : always | never | days   (days = โปรโมทได้เฉพาะวันใน promoDays)
+# promoDays  : [mon, tue, wed, thu, fri, sat, sun]
+# maxPerDay  : 1 หรือ 2
+# signature  : true = โพสต์สาย value แนบลายเซ็นสั้นๆ ท้ายโพสต์ได้ (เช่น "— Strata dev")
+# enabled    : false = พักกลุ่มนี้ไว้
+
+groups:
+  - id: webdev-th
+    name: "ตัวอย่าง: Web Developer Thailand"
+    url: https://www.facebook.com/groups/REPLACE_ME
+    audience: นักพัฒนาเว็บ ทั้งมือใหม่และมืออาชีพ
+    rules: ห้ามโพสต์ขายของ ยกเว้นวันเสาร์ ห้ามสแปมลิงก์
+    promo: days
+    promoDays: [sat]
+    maxPerDay: 2
+    signature: true
+    enabled: true
+
+  - id: freelance-it
+    name: "ตัวอย่าง: หางาน Freelance IT"
+    url: https://www.facebook.com/groups/REPLACE_ME_2
+    audience: คนหาฟรีแลนซ์ทำเว็บ/ระบบ และฟรีแลนซ์ IT
+    rules: โพสต์รับงานได้ ต้องระบุราคาเริ่มต้น
+    promo: always
+    maxPerDay: 2
+    signature: true
+    enabled: true
+
+  - id: sme-online
+    name: "ตัวอย่าง: SME ขายของออนไลน์"
+    url: https://www.facebook.com/groups/REPLACE_ME_3
+    audience: เจ้าของร้านและธุรกิจขนาดเล็ก ไม่ใช่สาย IT
+    rules: ห้ามขายตรง ให้แบ่งปันความรู้เป็นหลัก
+    promo: never
+    maxPerDay: 1
+    signature: false
+    enabled: true

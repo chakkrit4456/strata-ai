@@ -1,0 +1,9 @@
+[Unit]
+Description=Strata: generate posts every morning
+
+[Timer]
+OnCalendar=*-*-* 07:00:00 Asia/Bangkok
+Persistent=true
+
+[Install]
+WantedBy=timers.target

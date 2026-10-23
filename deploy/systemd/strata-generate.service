@@ -1,0 +1,13 @@
+[Unit]
+Description=Strata: generate today's posts and images
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__APP_USER__
+WorkingDirectory=__APP_DIR__
+Environment=NODE_ENV=production
+Environment=PLAYWRIGHT_BROWSERS_PATH=__APP_DIR__/.browsers
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning src/cli.js generate
+TimeoutStartSec=30min
