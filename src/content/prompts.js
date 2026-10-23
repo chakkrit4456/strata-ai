@@ -1,5 +1,5 @@
 import YAML from 'yaml';
-import { SLOT_LABEL } from '../time.js';
+import { slotLabel } from '../time.js';
 
 const MODE_TEXT = {
   promo: 'โปรโมทได้ (ใช้ราคา/ขอบเขตตามข้อมูลจริง ชวนทักมาคุยได้)',
@@ -31,7 +31,7 @@ ${YAML.stringify(brand)}</brand>
 - headline ใส่ | ได้ 1 ครั้งเพื่อให้ส่วนท้ายเป็นสีเขียวเน้น เช่น "ระบบสต็อกที่|ไม่ต้องนับมือ"`;
 }
 
-export function slotPrompt({ date, slotPlan, groups, recentTopics }) {
+export function slotPrompt({ date, slotPlan, groups, recentTopics, topicHint = "" }) {
   const p = slotPlan.pillar;
   const groupLines = slotPlan.groups.map(({ groupId, mode }) => {
     const g = groups.find((x) => x.id === groupId);
@@ -44,9 +44,11 @@ export function slotPrompt({ date, slotPlan, groups, recentTopics }) {
   }).join('\n');
   const needsSoft = slotPlan.groups.some((g) => g.mode === 'soft');
 
-  return `วันที่ ${date} ${SLOT_LABEL[slotPlan.slot]}
+  return `วันที่ ${date} ${slotLabel(slotPlan.slot)}
 หมวด: ${p.label} (${slotPlan.isPromo ? 'โพสต์โปรโมท' : 'โพสต์ให้ความรู้/สนุก ห้ามขาย'})
-แนวทาง: ${p.brief}
+แนวทาง: ${p.brief}${topicHint ? `
+หัวข้อที่เจ้าของเพจอยากให้เขียน: ${topicHint}
+(ยึดหัวข้อนี้เป็นหลัก แต่ข้อเท็จจริงทั้งหมดยังต้องมาจากข้อมูลแบรนด์เท่านั้น)` : ""}
 เทมเพลตภาพหลัก: ${p.template}
 
 หัวข้อที่เคยโพสต์แล้ว (ห้ามซ้ำหรือคล้าย):

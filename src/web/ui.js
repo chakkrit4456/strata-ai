@@ -4,7 +4,9 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 export const badge = ([text, tone]) => `<span class="badge ${tone}">${esc(text)}</span>`;
 
 const NAV = [
+  ['/now', 'now', '⚡ สร้างและโพสต์ทันที'],
   ['/', 'queue', 'คิววันนี้'],
+  ['/drafts', 'drafts', 'ร่างโพสต์'],
   ['/history', 'history', 'โพสต์/ประวัติ'],
   ['/groups', 'groups', 'กลุ่ม'],
   ['/brand', 'brand', 'แบรนด์'],
@@ -63,7 +65,8 @@ a{color:var(--mint)}
 .top .logo{font-weight:700;letter-spacing:.14em;margin-right:auto}
 nav{display:flex;gap:4px;overflow-x:auto;padding:0 12px 10px;max-width:1100px;margin:0 auto;scrollbar-width:none}
 nav a{white-space:nowrap;text-decoration:none;color:var(--muted);padding:6px 12px;border-radius:99px;font-size:14px}
-nav a.on{background:#20242b;color:var(--text)}
+nav a.on{background:#20242b;color:var(--text)}nav a[href="/now"]{color:var(--mint)}
+.steps{margin:6px 0 0;padding-left:20px}.disabled{opacity:.5}
 main{max-width:1100px;margin:0 auto;padding:16px}
 h1{font-size:22px;margin:4px 0 16px}h2{font-size:18px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:20px}
@@ -100,5 +103,6 @@ ${nav ? `<header class="top"><div class="bar"><span class="logo">STRATA</span><f
 async function copyText(id){const el=document.getElementById(id);const t=el.value??el.textContent;
 try{await navigator.clipboard.writeText(t)}catch{el.select?.();document.execCommand('copy')}
 const s=document.getElementById('toast');s.style.display='block';setTimeout(()=>s.style.display='none',1200)}
+function copyOpen(id,url){const w=window.open(url,'_blank');if(w)w.opener=null;else location.href=url;copyText(id)}
 </script></body></html>`;
 }

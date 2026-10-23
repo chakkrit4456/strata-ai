@@ -46,12 +46,19 @@ CREATE TABLE IF NOT EXISTS runs (
 
 let db;
 
+// เพิ่มคอลัมน์ให้ฐานข้อมูลเดิมโดยไม่ต้องลบข้อมูล
+function migrate(d) {
+  const cols = new Set(d.prepare('PRAGMA table_info(posts)').all().map((c) => c.name));
+  if (!cols.has('model')) d.exec('ALTER TABLE posts ADD COLUMN model TEXT');
+}
+
 export function getDb() {
   if (db) return db;
   fs.mkdirSync(env.dataDir, { recursive: true });
   db = new DatabaseSync(path.join(env.dataDir, 'strata.db'));
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
 }
 
@@ -60,6 +67,7 @@ export function useMemoryDb() {
   db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
 }
 
@@ -88,10 +96,10 @@ export function insertPost(post, items) {
   d.exec('BEGIN');
   try {
     const { lastInsertRowid } = d.prepare(`INSERT INTO posts
-      (date, slot, pillar, is_promo, topic, caption, image_json, image_path, soft_image_path, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      (date, slot, pillar, is_promo, topic, caption, image_json, image_path, soft_image_path, status, model, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
       post.date, post.slot, post.pillar, post.isPromo ? 1 : 0, post.topic, post.caption,
-      JSON.stringify(post.image), post.imagePath, post.softImagePath ?? null, post.status, nowIso());
+      JSON.stringify(post.image), post.imagePath, post.softImagePath ?? null, post.status, post.model ?? null, nowIso());
     const ins = d.prepare('INSERT INTO group_items (post_id, group_id, mode, text, status) VALUES (?, ?, ?, ?, ?)');
     for (const it of items) ins.run(lastInsertRowid, it.groupId, it.mode, it.text, 'waiting');
     d.exec('COMMIT');
@@ -180,4 +188,10 @@ export function groupStats() {
 
 export function recentRuns(limit = 200) {
   return getDb().prepare('SELECT * FROM runs ORDER BY id DESC LIMIT ?').all(limit);
+}
+
+/** ร่างที่ยังไม่ลงเพจ (ทุกวัน) ใหม่สุดก่อน */
+export function draftPosts(limit = 50) {
+  return getDb().prepare(`SELECT * FROM posts WHERE status IN ('pending_approval','approved','failed')
+    ORDER BY date DESC, created_at DESC LIMIT ?`).all(limit);
 }

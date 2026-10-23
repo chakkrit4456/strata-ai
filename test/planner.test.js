@@ -78,3 +78,22 @@ test('ผลลัพธ์คงที่สำหรับวันเดี�
   const b = planDay({ date: '2026-11-05', pillarsCfg, groups: [g('a')] });
   assert.deepEqual(a.slots.map((s) => s.pillar.id), b.slots.map((s) => s.pillar.id));
 });
+
+test('planNow: หมวดโปรโมท → กลุ่มที่ห้ามขายได้เวอร์ชันไม่ขาย, หมวด value → ทุกกลุ่ม value', async () => {
+  const { planNow } = await import('../src/content/planner.js');
+  const groups = [g('a'), g('n', { promo: 'never' })];
+  const p = planNow({ date: '2026-10-24', slot: 'now-101500', pillarsCfg, pillarId: 'package', groups });
+  assert.equal(p.isPromo, true);
+  assert.deepEqual(p.groups.map((x) => x.mode), ['promo', 'soft']);
+  const v = planNow({ date: '2026-10-24', slot: 'now-101500', pillarsCfg, pillarId: 'tip', groups });
+  assert.deepEqual(v.groups.map((x) => x.mode), ['value', 'value']);
+  const auto = planNow({ date: '2026-10-24', slot: 'now-101500', pillarsCfg, groups: [] });
+  assert.ok(auto.pillar.id);
+  assert.throws(() => planNow({ date: '2026-10-24', slot: 'x', pillarsCfg, pillarId: 'nope', groups }), /ไม่พบหมวด/);
+});
+
+test('slotLabel แสดงโพสต์ด่วนเป็นเวลา', async () => {
+  const { slotLabel } = await import('../src/time.js');
+  assert.equal(slotLabel('morning'), 'รอบเช้า');
+  assert.equal(slotLabel('now-143005'), 'โพสต์ด่วน 14:30');
+});

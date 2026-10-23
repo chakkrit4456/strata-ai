@@ -85,3 +85,26 @@ export function planDay({ date, pillarsCfg, groups, recent = [], lastModes = {} 
   }
   return { date, slots };
 }
+
+/**
+ * แผนสำหรับ "สร้างและโพสต์ทันที": 1 โพสต์ ไปเฉพาะกลุ่มที่เลือก
+ * ถ้าไม่ระบุหมวด จะเลือกให้แบบเดียวกับรายวัน (โปรโมทเมื่อสัดส่วนยังไม่เกินและโพสต์ล่าสุดไม่ใช่โปรโมท)
+ */
+export function planNow({ date, slot, pillarsCfg, pillarId = '', groups, recent = [], lastModes = {} }) {
+  let pillar = pillarsCfg.pillars.find((p) => p.id === pillarId);
+  if (pillarId && !pillar) throw new Error(`ไม่พบหมวด "${pillarId}" (หรือถูกปิดไว้)`);
+  if (!pillar) {
+    const day = planDay({ date: `${date}:${slot}`, pillarsCfg, groups: [], recent, lastModes });
+    pillar = (day.slots.find((s) => s.isPromo) ?? day.slots[0]).pillar;
+  }
+  const isPromo = pillar.kind === 'promo';
+  return {
+    slot,
+    pillar,
+    isPromo,
+    groups: groups.map((g) => ({
+      groupId: g.id,
+      mode: isPromo ? (canPromoToday(g, date) && lastModes[g.id] !== 'promo' ? 'promo' : 'soft') : 'value',
+    })),
+  };
+}

@@ -145,3 +145,37 @@ test('เปลี่ยนรหัสแล้ว session เดิมหล�
   assert.equal((await req('/settings')).location, '/login');
   cookie = saved;
 });
+
+test('groupProblem: รับเฉพาะลิงก์กลุ่ม Facebook จริง', () => {
+  const base = { enabled: true };
+  assert.equal(config.groupProblem({ ...base, url: 'https://www.facebook.com/groups/123456789' }), '');
+  assert.equal(config.groupProblem({ ...base, url: 'https://web.facebook.com/groups/webdev.th/' }), '');
+  assert.match(config.groupProblem({ ...base, url: 'https://www.facebook.com/groups/REPLACE_ME' }), /ตัวอย่าง/);
+  assert.match(config.groupProblem({ ...base, url: 'https://www.facebook.com/somepage' }), /ไม่ใช่กลุ่ม/);
+  assert.match(config.groupProblem({ ...base, url: '' }), /ลิงก์/);
+  assert.match(config.groupProblem({ enabled: false, url: 'https://www.facebook.com/groups/1' }), /พัก/);
+});
+
+test('/now และ /drafts เปิดได้ และ /now ปฏิเสธกลุ่มที่ไม่ใช่กลุ่มจริง', async () => {
+  assert.equal((await req('/drafts')).status, 200);
+  const page = await req('/now');
+  assert.equal(page.status, 200);
+  const r = await req('/now', { method: 'POST', form: { _csrf: csrfOf(page.text), groups: 'no-such-group', preview: '1' } });
+  assert.equal(r.status, 400);
+  assert.match(r.text, /ไม่พบกลุ่ม/);
+});
+
+test('ลบร่างได้ แต่ลบโพสต์ที่ลงเพจแล้วไม่ได้', async () => {
+  const db = await import('../src/db.js');
+  const mk = (slot, status) => db.insertPost({ date: '2026-10-24', slot, pillar: 'tip', isPromo: false, topic: `t-${slot}`, caption: 'c', image: {}, imagePath: path.join(tmp, 'x.png'), status }, [{ groupId: 'new-group', mode: 'value', text: 'x' }]);
+  const draft = mk('now-100000', 'pending_approval');
+  const live = mk('now-110000', 'published');
+  const csrf = csrfOf((await req('/drafts')).text);
+  assert.match((await req('/drafts')).text, /t-now-100000/);
+  await req(`/post/${draft}/delete`, { method: 'POST', form: { _csrf: csrf } });
+  assert.equal(db.getPost(draft), undefined);
+  assert.equal(db.itemsForPost(draft).length, 0);
+  const r = await req(`/post/${live}/delete`, { method: 'POST', form: { _csrf: csrf } });
+  assert.match(decodeURIComponent(r.location), /ลงเพจแล้ว/);
+  assert.ok(db.getPost(live));
+});

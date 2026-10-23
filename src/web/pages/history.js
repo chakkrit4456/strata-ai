@@ -1,6 +1,6 @@
 // หน้า "โพสต์/ประวัติ" และ "Log"
 import { readPillars } from '../../config.js';
-import { SLOT_LABEL } from '../../time.js';
+import { slotLabel } from '../../time.js';
 import * as db from '../../db.js';
 import { esc, badge, layout, select } from '../ui.js';
 import { STATUS } from './shared.js';
@@ -18,7 +18,7 @@ function historyPage(ctx) {
   const qs = (n) => `?${new URLSearchParams({ ...(status && { status }), ...(pillar && { pillar }), page: n })}`;
 
   const body = rows.map((p) => `<tr>
-    <td>${esc(p.date)}<div class="muted">${esc(SLOT_LABEL[p.slot])}</div></td>
+    <td>${esc(p.date)}<div class="muted">${esc(slotLabel(p.slot))}</div></td>
     <td><a href="/post/${p.id}">${esc(p.topic)}</a><div class="muted">${esc(p.pillar)}${p.is_promo ? ' · โปรโมท' : ''}</div></td>
     <td>${badge(STATUS[p.status] ?? [p.status, 'mute'])}</td>
     <td>${p.items_done} / ${p.items_total}</td>

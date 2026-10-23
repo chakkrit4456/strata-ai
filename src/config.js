@@ -178,3 +178,19 @@ export function saveGroups(groups) {
 }
 
 export { WEEKDAYS };
+
+/**
+ * กลุ่มที่เลือกโพสต์ได้จริง: มาจาก groups.yaml ของจริง, เปิดใช้อยู่ และลิงก์เป็นกลุ่ม Facebook ที่ไม่ใช่ลิงก์ตัวอย่าง
+ * @returns {string} เหตุผลที่ใช้ไม่ได้ ('' = ใช้ได้)
+ */
+export function groupProblem(g) {
+  if (!groupsFileExists()) return 'ยังเป็นรายชื่อกลุ่มตัวอย่าง (เพิ่มกลุ่มจริงที่หน้า "กลุ่ม")';
+  if (!g.enabled) return 'กลุ่มนี้พักไว้';
+  if (!g.url) return 'ยังไม่ได้ใส่ลิงก์กลุ่ม';
+  const m = /^https:\/\/(?:www\.|m\.|web\.)?facebook\.com\/groups\/([A-Za-z0-9._-]+)\/?(?:[?#].*)?$/.exec(g.url);
+  if (!m) return 'ลิงก์ไม่ใช่กลุ่ม Facebook (ต้องเป็น facebook.com/groups/...)';
+  if (/replace|example|xxx/i.test(m[1])) return 'ยังเป็นลิงก์ตัวอย่าง';
+  return '';
+}
+
+export const isRealGroup = (g) => groupProblem(g) === '';

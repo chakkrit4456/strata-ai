@@ -49,10 +49,10 @@ export function parseContent(text) {
  * แต่ละเจ้าแก้งานที่ไม่ผ่าน guard ได้ 2 ครั้ง ถ้าโควตาหมด/ล่ม/ตอบผิดรูปแบบ จะข้ามไปเจ้าถัดไป
  * @returns {Promise<{content: object, attempts: number, issues: string[], provider: string, model: string}>}
  */
-export async function writeSlot({ date, slotPlan, groups, brand, history, providers = loadProviders() }) {
+export async function writeSlot({ date, slotPlan, groups, brand, history, topicHint = '', providers = loadProviders() }) {
   if (!providers.length) throw new Error('ยังไม่ได้ตั้งคีย์ AI (GEMINI_API_KEY / GROQ_API_KEY / OPENROUTER_API_KEY)');
   const system = systemPrompt(brand) + SCHEMA_NOTE;
-  const firstPrompt = slotPrompt({ date, slotPlan, groups, recentTopics: history.topics.slice(0, 60) });
+  const firstPrompt = slotPrompt({ date, slotPlan, groups, recentTopics: history.topics.slice(0, 60), topicHint });
   const failures = [];
   let attempts = 0;
   let lastIssues = [];

@@ -1,6 +1,6 @@
 // หน้าแก้ไขโพสต์: แคปชัน, ข้อความในภาพ (render ใหม่), ข้อความแต่ละกลุ่ม, สร้างรอบนี้ใหม่ด้วย AI
 import { loadBrand, loadGroups } from '../../config.js';
-import { SLOT_LABEL } from '../../time.js';
+import { slotLabel } from '../../time.js';
 import * as db from '../../db.js';
 import { savePostEdits, startRegenerate, postWarnings, jobState } from '../../jobs.js';
 import { esc, badge, btn, layout, field, area, select, csrfInput, lines } from '../ui.js';
@@ -17,7 +17,7 @@ function editPage(ctx, post) {
   return {
     html: layout({
       title: `แก้โพสต์ ${post.date}`, active: 'history', flash: ctx.flash,
-      body: `<div class="head"><h1 style="margin:0 auto 0 0">${esc(SLOT_LABEL[post.slot])} ${esc(post.date)}</h1>
+      body: `<div class="head"><h1 style="margin:0 auto 0 0">${esc(slotLabel(post.slot))} ${esc(post.date)}</h1>
         ${badge([post.pillar + (post.is_promo ? ' · โปรโมท' : ''), 'info'])}${badge(STATUS[post.status] ?? [post.status, 'mute'])}
         <a class="button" href="/?date=${esc(post.date)}">ไปที่คิววันนั้น</a></div>
       ${warnings.length ? `<div class="flash warn">ตัวตรวจเนื้อหาพบ ${warnings.length} ข้อ (บันทึกได้ แต่ควรดูก่อน):\n• ${warnings.map(esc).join('\n• ')}</div>` : ''}
@@ -48,7 +48,10 @@ function editPage(ctx, post) {
         </section>
         <div class="actions"><button class="primary">บันทึก${locked ? '' : ' (ทำภาพใหม่ถ้าข้อความในภาพเปลี่ยน)'}</button><a class="button" href="/?date=${esc(post.date)}">กลับ</a></div>
       </form>
-      ${locked ? '' : `<section class="card" style="margin-top:20px"><h2 style="margin-top:0">ไม่ชอบทั้งโพสต์?</h2>
+      ${locked ? '' : `<section class="card" style="margin-top:20px"><h2 style="margin-top:0">พร้อมแล้ว?</h2>
+        <div class="actions">${btn(`/post/${post.id}/publish`, 'ยืนยันโพสต์ลงเพจตอนนี้', { csrf: ctx.csrf, tone: 'primary', confirm: 'บันทึกการแก้ไขก่อนแล้วหรือยัง? โพสต์ลงเพจตอนนี้เลยไหม?' })}
+        ${btn(`/post/${post.id}/delete`, 'ลบร่างนี้', { csrf: ctx.csrf, tone: 'danger', confirm: 'ลบร่างนี้ทิ้ง? (กู้คืนไม่ได้)' })}</div></section>
+      <section class="card"><h2 style="margin-top:0">ไม่ชอบทั้งโพสต์?</h2>
         <p class="muted">ทิ้งโพสต์รอบนี้และข้อความกลุ่มทั้งหมด แล้วให้ AI คิดหัวข้อและเขียนใหม่ (ใช้เวลาประมาณ 1–2 นาที)</p>
         ${btn(`/post/${post.id}/regenerate`, jobState().running ? 'มีงานกำลังทำอยู่…' : 'สร้างรอบนี้ใหม่ด้วย AI', { csrf: ctx.csrf, tone: 'danger', confirm: 'ทิ้งโพสต์นี้แล้วให้ AI เขียนใหม่?' })}</section>`}`,
     }),
@@ -87,6 +90,6 @@ export const routes = [
     } catch (e) {
       return redirect(`/post/${id}`, { err: e.message });
     }
-    return redirect(`/?date=${post.date}`, { ok: 'กำลังให้ AI เขียนรอบนี้ใหม่…' });
+    return redirect('/drafts', { ok: 'กำลังให้ AI เขียนใหม่…' });
   }],
 ];

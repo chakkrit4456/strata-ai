@@ -1,7 +1,7 @@
 // หน้า "คิววันนี้": อนุมัติ/โพสต์เพจ + คิวโพสต์ลงกลุ่ม + ปุ่มสร้างโพสต์ของวัน
 import { env } from '../../env.js';
 import { loadGroups } from '../../config.js';
-import { today, addDays, SLOT_LABEL } from '../../time.js';
+import { today, addDays, slotLabel } from '../../time.js';
 import * as db from '../../db.js';
 import { publishPost, startGenerate, jobState } from '../../jobs.js';
 import { esc, badge, btn, layout } from '../ui.js';
@@ -15,10 +15,10 @@ function renderItem(item, post, group, csrf) {
     ${group?.rules ? `<p class="muted">กฎกลุ่ม: ${esc(group.rules)}</p>` : ''}
     <textarea id="t-${item.id}" rows="7" readonly>${esc(item.text)}</textarea>
     <div class="actions">
-      <button type="button" class="primary" onclick="copyText('t-${item.id}')">คัดลอกข้อความ</button>
+      <button type="button" onclick="copyText('t-${item.id}')">คัดลอกข้อความ</button>
       <a class="button" href="${img}" download="strata-${post.date}-${post.slot}-${item.group_id}.png">ดาวน์โหลดภาพ</a>
       ${post.permalink ? `<input type="hidden" id="l-${item.id}" value="${esc(post.permalink)}"><button type="button" onclick="copyText('l-${item.id}')">คัดลอกลิงก์โพสต์เพจ</button>` : ''}
-      ${group?.url ? `<a class="button" href="${esc(group.url)}" target="_blank" rel="noopener">เปิดกลุ่ม ↗</a>` : ''}
+      ${group?.url ? `<button type="button" class="primary" onclick="copyOpen('t-${item.id}', ${esc(JSON.stringify(group.url))})">คัดลอก + เปิดกลุ่ม ↗</button>` : ''}
       ${open
         ? btn(`/item/${item.id}/done`, 'โพสต์แล้ว ✓', { csrf }) + btn(`/item/${item.id}/skip`, 'ข้าม', { csrf })
         : btn(`/item/${item.id}/undo`, 'ย้อนกลับ', { csrf })}
@@ -33,8 +33,8 @@ function renderPost(post, groups, csrf) {
   }
   if (!['published', 'skipped'].includes(post.status)) actions.push(btn(`/post/${post.id}/skip`, 'ข้ามโพสต์นี้', { csrf, tone: 'danger', confirm: 'ข้ามโพสต์นี้?' }));
   const groupOf = (id) => groups.find((g) => g.id === id);
-  return `<section class="card">
-    <div class="head"><h2>${esc(SLOT_LABEL[post.slot])} · ${esc(post.topic)}</h2>
+  return `<section class="card" id="post-${post.id}">
+    <div class="head"><h2>${esc(slotLabel(post.slot))} · ${esc(post.topic)}</h2>
       ${badge([post.pillar + (post.is_promo ? ' · โปรโมท' : ''), 'info'])}${badge(STATUS[post.status] ?? [post.status, 'mute'])}</div>
     <div class="post">
       <div><img src="${post.imageUrl}" alt="">${post.softImageUrl ? `<p class="muted">ภาพแบบไม่ขาย (กลุ่มที่ห้ามขาย)</p><img src="${post.softImageUrl}" alt="">` : ''}</div>
@@ -51,11 +51,16 @@ function renderPost(post, groups, csrf) {
   </section>`;
 }
 
-export function jobBanner(csrf) {
+export function jobBanner() {
   const j = jobState();
-  if (j.running) return `<div class="flash info">⏳ ${esc(j.label)}… (หน้านี้จะรีเฟรชเอง)</div>`;
-  if (j.finishedAt && j.error) return `<div class="flash bad">งาน "${esc(j.label)}" ล้มเหลว: ${esc(j.error)}</div>`;
-  if (j.finishedAt && Date.now() - Date.parse(j.finishedAt) < 10 * 60_000) return `<div class="flash ok">เสร็จแล้ว: ${esc(j.label)}${j.summary ? `\n${esc(j.summary)}` : ''}</div>`;
+  const steps = j.steps.length
+    ? `<ol class="steps">${j.steps.map((s, i) => `<li>${esc(s)}${j.running && i === j.steps.length - 1 ? ' …' : ' ✓'}</li>`).join('')}</ol>`
+    : '';
+  if (j.running) return `<div class="flash info">⏳ ${esc(j.label)} (หน้านี้จะรีเฟรชเอง)${steps}</div>`;
+  if (j.finishedAt && j.error) return `<div class="flash bad">งาน "${esc(j.label)}" ล้มเหลว: ${esc(j.error)}${steps}</div>`;
+  if (j.finishedAt && Date.now() - Date.parse(j.finishedAt) < 10 * 60_000) {
+    return `<div class="flash ok">เสร็จแล้ว: ${esc(j.label)}${j.summary ? `\n${esc(j.summary)}` : ''}${j.url ? `\n<a href="${esc(j.url)}">เปิดดู →</a>` : ''}</div>`;
+  }
   return '';
 }
 

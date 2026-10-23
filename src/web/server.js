@@ -12,8 +12,10 @@ import { routes as groups } from './pages/groups.js';
 import { routes as brand } from './pages/brand.js';
 import { routes as pillars } from './pages/pillars.js';
 import { routes as settings } from './pages/settings.js';
+import { routes as drafts } from './pages/drafts.js';
+import { routes as now } from './pages/now.js';
 
-const ROUTES = [...queue, ...post, ...history, ...groups, ...brand, ...pillars, ...settings];
+const ROUTES = [...queue, ...drafts, ...now, ...post, ...history, ...groups, ...brand, ...pillars, ...settings];
 const COOKIE = 'strata_sid';
 const MAX_BODY = 1_000_000;
 
